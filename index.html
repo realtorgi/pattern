@@ -409,11 +409,13 @@
                     <span class="w-3 h-3 rounded-full bg-rose-500 recording-active shrink-0"></span>
                     <div class="flex-1 min-w-0">
                         <p class="font-bold text-white flex items-center gap-1.5">
-                            음성 인식 수신 중...
-                            <span class="text-[10px] text-rose-300 font-normal">(말씀하신 후 [말하기 완료]를 누르시면 자동 입력됩니다)</span>
+                            연속 음성 인식 중... (시험 하나를 말씀하시면 자동으로 다음 회차 칸이 생성됩니다!)
                         </p>
                         <p id="voice-transcript-preview" class="text-xs text-amber-300 font-medium truncate mt-0.5 bg-black/40 px-2 py-1 rounded-lg border border-amber-500/30">"말씀하시는 내용이 여기에 표시됩니다..."</p>
                     </div>
+                </div>
+                <button onclick="stopVoiceRegistration(true)" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs shrink-0 shadow">말하기 완료 및 저장</button>
+            </div>
                 </div>
                 <button onclick="stopVoiceRegistration(true)" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs shrink-0 shadow">말하기 완료</button>
             </div>
@@ -977,7 +979,7 @@
         }
 
         // ==========================================
-        // VOICE INPUT LOGIC
+        // VOICE INPUT LOGIC (MULTI-EXAM CONTINUOUS)
         // ==========================================
         let recognition = null;
         let isRecording = false;
@@ -989,6 +991,235 @@
                 alert("현재 브라우저는 음성 인식을 지원하지 않습니다. 구글 크롬(Chrome) 브라우저를 사용해 주세요.");
                 return null;
             }
+            const rec = new SpeechRecognition();
+            rec.lang = 'ko-KR';
+            rec.continuous = true;
+            rec.interimResults = true;
+            return rec;
+        }
+
+        function startVoiceRegistration() {
+            if (isRecording) {
+                stopVoiceRegistration(true);
+                return;
+            }
+
+            recognition = initSpeechRecognition();
+            if (!recognition) return;
+
+            accumulatedTranscript = "";
+            const statusBox = document.getElementById('voice-live-status');
+            const previewText = document.getElementById('voice-transcript-preview');
+            const voiceBtn = document.getElementById('voice-main-btn');
+            
+            statusBox.classList.remove('hidden');
+            previewText.innerText = "말씀을 시작해주세요... (예: 소연이 고1 2026년 3월 85점 31번 34번, 이어서 6월 88점 32번)";
+            
+            voiceBtn.innerHTML = `<i class="fa-solid fa-square text-xs"></i> <span>말하기 완료</span>`;
+            voiceBtn.className = "px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 transition active:scale-95 whitespace-nowrap";
+
+            setupRecognitionListeners(previewText);
+
+            try {
+                recognition.start();
+                isRecording = true;
+            } catch (err) {
+                console.warn("Speech recognition start error:", err);
+            }
+        }
+
+        function setupRecognitionListeners(previewElement) {
+            recognition.onresult = (event) => {
+                let interim = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        accumulatedTranscript += ' ' + event.results[i][0].transcript;
+                    } else {
+                        interim += event.results[i][0].transcript;
+                    }
+                }
+
+                const currentFullText = (accumulatedTranscript + ' ' + interim).trim();
+                if (currentFullText) {
+                    previewElement.innerText = currentFullText;
+                }
+            };
+
+            recognition.onerror = (event) => {
+                if (event.error === 'no-speech') return;
+                console.error("Speech recognition error", event.error);
+                if (event.error === 'not-allowed') {
+                    alert("마이크 사용 권한이 거부되었습니다.");
+                    stopVoiceRegistration(false);
+                }
+            };
+
+            recognition.onend = () => {
+                if (isRecording) {
+                    try { recognition.start(); } catch (e) {}
+                }
+            };
+        }
+
+        function stopVoiceRegistration(shouldParse = true) {
+            isRecording = false;
+
+            if (recognition) {
+                try {
+                    recognition.onend = null;
+                    recognition.stop();
+                } catch (e) {}
+            }
+
+            document.getElementById('voice-live-status').classList.add('hidden');
+            const voiceBtn = document.getElementById('voice-main-btn');
+            if (voiceBtn) {
+                voiceBtn.innerHTML = `<i class="fa-solid fa-microphone text-sm"></i> <span>음성 마이크 입력</span>`;
+                voiceBtn.className = "px-4 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 transition active:scale-95 whitespace-nowrap";
+            }
+
+            const modalBtn = document.getElementById('btn-modal-mic');
+            if (modalBtn) {
+                modalBtn.innerHTML = `<i class="fa-solid fa-microphone"></i> 말하기 시작`;
+                modalBtn.className = "px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl shadow transition flex items-center gap-1.5 whitespace-nowrap";
+            }
+
+            const previewText = document.getElementById('voice-transcript-preview');
+            const finalTranscript = (accumulatedTranscript + " " + (previewText ? previewText.innerText : "")).trim();
+            
+            if (shouldParse && finalTranscript.length > 0 && !finalTranscript.includes("말씀을 시작해주세요")) {
+                parseVoiceInputAndFill(finalTranscript);
+            }
+        }
+
+        function startVoiceRegistrationInModal() {
+            if (isRecording) {
+                stopVoiceRegistration(true);
+                return;
+            }
+
+            recognition = initSpeechRecognition();
+            if (!recognition) return;
+
+            accumulatedTranscript = "";
+            const modalBtn = document.getElementById('btn-modal-mic');
+            modalBtn.innerHTML = `<i class="fa-solid fa-square"></i> 말하기 완료`;
+            modalBtn.className = "px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow transition flex items-center gap-1.5 whitespace-nowrap";
+
+            const previewText = document.getElementById('voice-transcript-preview');
+            document.getElementById('voice-live-status').classList.remove('hidden');
+            setupRecognitionListeners(previewText);
+
+            try {
+                recognition.start();
+                isRecording = true;
+            } catch (err) {
+                console.warn("Speech recognition error in modal:", err);
+            }
+        }
+
+        function parseVoiceInputAndFill(transcript) {
+            openImageUploadModal();
+
+            // 1. 학생 이름 추출
+            let parsedName = "";
+            const directNameMatch = transcript.match(/(소연|나경|수연|우석|민준|지민|서연|하은|도윤|예준|하준|지유|서준|유진|현우|민서)/);
+            if (directNameMatch) {
+                parsedName = directNameMatch[1];
+            } else {
+                const flexNameMatch = transcript.match(/([가-힣]{2,4})\s*(학생|이|가|은|는|고|점)/);
+                if (flexNameMatch && !['고등', '모의', '고사', '원점', '학년', '시험', '고1', '고2', '고3'].includes(flexNameMatch[1])) {
+                    parsedName = flexNameMatch[1];
+                }
+            }
+
+            if (parsedName) document.getElementById('ocr-student-name').value = parsedName;
+
+            // 2. 학년 추출
+            let parsedGrade = "g1";
+            if (transcript.includes("고3") || transcript.includes("3학년")) parsedGrade = "g3";
+            else if (transcript.includes("고2") || transcript.includes("2학년")) parsedGrade = "g2";
+            else if (transcript.includes("고1") || transcript.includes("1학년")) parsedGrade = "g1";
+            document.getElementById('ocr-student-grade').value = parsedGrade;
+
+            // 3. 문장 내 여러 개의 모의고사 회차(시험) 분할 인식 (예: 3월..., 6월..., 9월..., 11월...)
+            const examChunks = transcript.split(/(?=\b(?:\d{1,2}월|3월|6월|9월|11월|모의고사|시험)\b)/gi);
+            
+            const detectedExams = [];
+            let currentYear = "2026년";
+
+            const globalYearMatch = transcript.match(/(20\d{2}|\d{2})년/);
+            if (globalYearMatch) {
+                currentYear = globalYearMatch[1].length === 2 ? `20${globalYearMatch[1]}년` : `${globalYearMatch[1]}년`;
+            }
+
+            // 구문별 시험정보 및 점수, 틀린번호 분리
+            let activeTitle = "";
+            let activeScore = 80;
+            let activeWrong = [];
+
+            const words = transcript.split(/\s+/);
+            
+            // 다중 시험 입력 처리 알고리즘
+            const examMatches = [...transcript.matchAll(/(\d{1,2})월[^\d]*(\d{1,3})\s*점([^\d]*\d+번?)* /g)];
+
+            if (examChunks.length > 1) {
+                examChunks.forEach(chunk => {
+                    const monthMatch = chunk.match(/(\d{1,2})월/);
+                    const scoreMatch = chunk.match(/(\d{1,3})\s*점/);
+                    
+                    if (monthMatch || scoreMatch) {
+                        const mTitle = monthMatch ? `${currentYear} ${monthMatch[1]}월 모의고사` : `${currentYear} 모의고사`;
+                        const mScore = scoreMatch ? parseInt(scoreMatch[1]) : 85;
+
+                        // 틀린 번호 추출
+                        let wrongNums = [];
+                        const numMatches = chunk.matchAll(/(\d{1,2})\s*번?/g);
+                        for (const match of numMatches) {
+                            const num = parseInt(match[1]);
+                            if (num >= 1 && num <= 45 && num !== mScore && (!monthMatch || num !== parseInt(monthMatch[1]))) {
+                                wrongNums.push(num);
+                            }
+                        }
+                        detectedExams.push({
+                            title: mTitle,
+                            score: mScore,
+                            wrong: [...new Set(wrongNums)].join(', ')
+                        });
+                    }
+                });
+            }
+
+            // 감지된 시험이 있다면 자동으로 칸들을 모두 생성해주고, 없으면 기본 1개 생성
+            if (detectedExams.length > 0) {
+                renderOcrExamRows(detectedExams);
+            } else {
+                // 단일 문장 파싱 Fallback
+                let month = "3월";
+                const monthMatch = transcript.match(/(\d{1,2})월/);
+                if (monthMatch) month = `${monthMatch[1]}월`;
+                
+                let score = 85;
+                const scoreMatch = transcript.match(/(\d{1,3})\s*점/);
+                if (scoreMatch) score = parseInt(scoreMatch[1]);
+
+                let wrongNums = [];
+                const numMatches = transcript.matchAll(/(\d{1,2})\s*번?/g);
+                for (const match of numMatches) {
+                    const num = parseInt(match[1]);
+                    if (num >= 1 && num <= 45 && num !== score && num !== parseInt(month)) {
+                        wrongNums.push(num);
+                    }
+                }
+                renderOcrExamRows([{
+                    title: `${currentYear} ${month} 모의고사`,
+                    score: score,
+                    wrong: [...new Set(wrongNums)].join(', ')
+                }]);
+            }
+
+            document.getElementById('ocr-memo').value = `• [2026년 연속 음성 자동 입력 리포트]\n - 수강생명: ${parsedName || '소연'}\n - 총 ${document.querySelectorAll('.ocr-exam-item').length}개 시험 회차 음성 등록 완료`;
+        }
             const rec = new SpeechRecognition();
             rec.lang = 'ko-KR';
             rec.continuous = true;
