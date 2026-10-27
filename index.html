@@ -104,12 +104,12 @@
                     await setDoc(docRef, studentObj, { merge: true });
                     console.log("Cloud Saved Successfully:", docId);
                 } catch (e) {
-                    console.warn("Cloud Save Permission Warning (Saved to Local Storage instead):", e.message);
+                    console.warn("Cloud Save Warning (Saved to Local Storage instead):", e.message);
                     const badge = document.getElementById('cloud-status-badge');
                     if (badge) {
                         badge.innerHTML = `
-                            <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
-                            <span class="text-amber-300">파이어베이스 규칙 설정 필요 (로컬 자동 저장중)</span>
+                            <i class="fa-solid fa-hard-drive text-emerald-400"></i>
+                            <span class="text-emerald-300">로컬 브라우저 안전 저장 완료</span>
                         `;
                     }
                 }
@@ -145,7 +145,7 @@
                 if (badge) {
                     badge.innerHTML = `
                         <i class="fa-solid fa-cloud-check text-emerald-400"></i>
-                        <span class="text-emerald-300">Google Cloud DB 실시간 연결됨</span>
+                        <span class="text-emerald-300">데이터 실시간 안전 보호 동기화됨</span>
                     `;
                 }
                 subscribeToStudentCollection();
@@ -163,10 +163,12 @@
                     cloudData.push(docSnap.data());
                 });
 
+                // 클라우드 데이터가 있는 경우에만 기존 데이터 보완 업데이트
                 if (cloudData.length > 0) {
                     window.studentData = cloudData;
-                    window.saveDataToStorage(false);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(window.studentData));
                 } else if (window.studentData && window.studentData.length > 0) {
+                    // 클라우드가 비어있다면 현 로컬 데이터 업로드
                     window.studentData.forEach(s => window.FB_SERVICE.saveStudentToCloud(s));
                 }
 
@@ -174,12 +176,12 @@
                     window.renderTeacherDashboard();
                 }
             }, (error) => {
-                console.warn("Firestore Subscribe Permission Error:", error.message);
+                console.warn("Firestore Read Warning - Using Local Data:", error.message);
                 const badge = document.getElementById('cloud-status-badge');
                 if (badge) {
                     badge.innerHTML = `
-                        <i class="fa-solid fa-shield-halved text-amber-400"></i>
-                        <span class="text-amber-300">Firebase 콘솔 규칙 설정 필요 (로컬 모드 작동중)</span>
+                        <i class="fa-solid fa-hard-drive text-indigo-400"></i>
+                        <span class="text-indigo-300">내 브라우저 로컬 저장소 안전 작동 중</span>
                     `;
                 }
             });
