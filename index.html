@@ -467,7 +467,7 @@
     <div id="imageUploadModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
         <div class="bg-navy-900 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-purple-500/50 max-h-[90vh] flex flex-col">
             <div class="bg-navy-950 px-6 py-4 flex justify-between items-center border-b border-purple-900/50 shrink-0">
-                <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                <h3 class="font-bold text-sm text-white flex items-center gap-2" id="modal-title-heading">
                     <i class="fa-solid fa-camera text-purple-400"></i> 오답/패턴 데이터 스캔 & 입력 모달
                 </h3>
                 <button onclick="closeImageUploadModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
@@ -593,6 +593,7 @@
         window.currentSystemMode = 'student';
         let currentTeacherGradeFilter = 'all';
         let geminiApiKey = "";
+        let currentEditingStudentId = null;
 
         // Default Initial Demo Data (수연, 나경, 소연)
         const initialDefaultStudents = [
@@ -914,6 +915,9 @@
                             <button onclick="previewStudentReport('${student.name}', '${student.grade}')" class="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-[11px] transition">
                                 <i class="fa-solid fa-chart-simple mr-1"></i>리포트
                             </button>
+                            <button onclick="editStudentData(${student.id})" class="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold text-[11px] transition">
+                                <i class="fa-solid fa-pen-to-square mr-1"></i>수정
+                            </button>
                             <button onclick="deleteStudent(${student.id})" class="px-2.5 py-1.5 bg-rose-900/60 hover:bg-rose-600 border border-rose-700/60 text-rose-200 hover:text-white rounded-xl font-bold text-[11px] transition">
                                 삭제
                             </button>
@@ -929,6 +933,27 @@
             if (student) {
                 renderStudentDashboard(student);
             }
+        }
+
+        function editStudentData(id) {
+            const student = window.studentData.find(s => s.id === id);
+            if (!student) return;
+
+            currentEditingStudentId = id;
+            
+            document.getElementById('modal-title-heading').innerHTML = `<i class="fa-solid fa-user-pen text-purple-400"></i> [${student.name}] 학생 정보 & 오답 수정`;
+            document.getElementById('ocr-student-name').value = student.name;
+            document.getElementById('ocr-student-grade').value = student.grade;
+            document.getElementById('ocr-memo').value = student.memo || "";
+
+            const mappedExams = (student.exams || []).map(ex => ({
+                title: ex.title,
+                score: ex.score,
+                wrong: (ex.wrongNumbers || []).join(', ')
+            }));
+
+            renderOcrExamRows(mappedExams.length > 0 ? mappedExams : [{ title: "", score: 80, wrong: "" }]);
+            openImageUploadModal();
         }
 
         function deleteStudent(id) {
@@ -1170,6 +1195,8 @@
         }
 
         function closeImageUploadModal() {
+            currentEditingStudentId = null;
+            document.getElementById('modal-title-heading').innerHTML = `<i class="fa-solid fa-camera text-purple-400"></i> 오답/패턴 데이터 스캔 & 입력 모달`;
             document.getElementById('imageUploadModal').classList.add('hidden');
         }
 
@@ -1330,7 +1357,14 @@
                 return;
             }
 
-            let student = window.studentData.find(s => s.name === name && s.grade === grade);
+            let student = null;
+            if (currentEditingStudentId) {
+                student = window.studentData.find(s => s.id === currentEditingStudentId);
+            }
+            
+            if (!student) {
+                student = window.studentData.find(s => s.name === name && s.grade === grade);
+            }
 
             if (!student) {
                 student = {
@@ -1343,13 +1377,16 @@
                 };
                 window.studentData.push(student);
             } else {
+                student.name = name;
+                student.grade = grade;
+                student.gradeLabel = gradeLabel;
                 student.memo = memo;
                 student.exams = newExams;
             }
 
             saveDataToStorage(true);
             closeImageUploadModal();
-            alert(`[${name}] 학생의 오답 기록이 저장되었습니다!`);
+            alert(`[${name}] 학생의 오답 기록이 저장/수정되었습니다!`);
 
             switchMode('teacher');
             renderTeacherDashboard();
