@@ -280,11 +280,23 @@
 
             <!-- Student List & Management Table -->
             <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4">
-                <div class="flex items-center justify-between">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <h3 class="font-bold text-sm text-white flex items-center gap-2">
-                        <i class="fa-solid fa-users text-purple-400"></i> 수강생 누적 오답 데이터 관리 (고1 / 고2 / 고3)
+                        <i class="fa-solid fa-users text-purple-400"></i> 수강생 누적 오답 데이터 관리
                     </h3>
-                    <span class="text-xs text-slate-400" id="teacher-student-count-badge">총 2명 수강생</span>
+                    
+                    <!-- 학년 필터 탭 -->
+                    <div class="flex items-center space-x-1 bg-navy-950 p-1 rounded-2xl border border-indigo-900/80">
+                        <button onclick="filterTeacherGrade('all')" id="btn-grade-all" class="px-3 py-1.5 rounded-xl text-xs font-bold transition bg-purple-600 text-white shadow">전체</button>
+                        <button onclick="filterTeacherGrade('g1')" id="btn-grade-g1" class="px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white">고1</button>
+                        <button onclick="filterTeacherGrade('g2')" id="btn-grade-g2" class="px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white">고2</button>
+                        <button onclick="filterTeacherGrade('g3')" id="btn-grade-g3" class="px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white">고3</button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+                    <span id="teacher-student-count-badge">등록된 수강생: 0명</span>
+                    <span class="text-indigo-300 font-medium">* 엑셀 업로드 또는 오답 스캔을 통해 학생 데이터를 새로 추가해 주세요.</span>
                 </div>
 
                 <!-- Table of Students -->
@@ -391,31 +403,10 @@
     <!-- Application Script Logic -->
     <script>
         let currentSystemMode = 'student'; // 'student' or 'teacher'
-        let studentData = [
-            {
-                id: 1,
-                name: "김민준",
-                grade: "g1",
-                gradeLabel: "고1",
-                memo: "• 31~34번 고난도 빈칸 추론 문단 논리 고리 파악 미숙으로 지속적 감점 발생.\n• 36~39번 순서/삽입 지시어·연결어 시그널 체크 훈련 병행 요망.\n• 주 2회 패러프레이징 집중 클리닉 과제 부여.",
-                exams: [
-                    { id: 101, title: "1학년 3월 전국연합모의고사", score: 74, wrongNumbers: [31, 32, 34, 37, 39] },
-                    { id: 102, title: "1학년 6월 전국연합모의고사", score: 78, wrongNumbers: [31, 33, 34, 38] },
-                    { id: 103, title: "1학년 9월 전국연합모의고사", score: 81, wrongNumbers: [31, 34, 39] }
-                ]
-            },
-            {
-                id: 2,
-                name: "우석",
-                grade: "g1",
-                gradeLabel: "고1",
-                memo: "• 듣기평가(1~17번) 집중력 저하로 인한 2~3문항 감점 반복.\n• 후반부 시간 안배 실패로 장문 독해(41~45번) 급하게 풀이하는 경향.\n• 매일 듣기 1회 모의고사 및 구문 Chunking 끊어읽기 습관화 지침.",
-                exams: [
-                    { id: 501, title: "1학년 3월 대비 진단모의고사", score: 72, wrongNumbers: [18, 31, 34, 37, 43, 44] },
-                    { id: 502, title: "1학년 3월 전국연합모의고사", score: 76, wrongNumbers: [31, 32, 34, 39] }
-                ]
-            }
-        ];
+        let currentTeacherGradeFilter = 'all'; // 'all', 'g1', 'g2', 'g3'
+        
+        // 원장님이 직접 올려주실 수 있도록 초기 샘플 데이터는 비워두거나 최소화하였습니다.
+        let studentData = [];
 
         function switchMode(mode) {
             currentSystemMode = mode;
@@ -436,6 +427,22 @@
                 document.getElementById('view-teacher-portal').classList.remove('hidden');
                 renderTeacherDashboard();
             }
+        }
+
+        function filterTeacherGrade(grade) {
+            currentTeacherGradeFilter = grade;
+            const grades = ['all', 'g1', 'g2', 'g3'];
+            grades.forEach(g => {
+                const btn = document.getElementById(`btn-grade-${g}`);
+                if (btn) {
+                    if (g === grade) {
+                        btn.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition bg-purple-600 text-white shadow";
+                    } else {
+                        btn.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white";
+                    }
+                }
+            });
+            renderTeacherDashboard();
         }
 
         function getItemType(num) {
@@ -464,7 +471,6 @@
             } else if (str.includes("2") || str.includes("고2") || str.includes("g2")) {
                 return { gradeKey: "g2", gradeLabel: "고2" };
             } else {
-                // Default for 예비고1, 1학년, 고1, etc.
                 return { gradeKey: "g1", gradeLabel: "고1" };
             }
         }
@@ -608,10 +614,26 @@
         }
 
         function renderTeacherDashboard() {
-            document.getElementById('teacher-student-count-badge').innerText = `총 ${studentData.length}명 수강생`;
+            let filtered = studentData;
+            if (currentTeacherGradeFilter !== 'all') {
+                filtered = studentData.filter(s => s.grade === currentTeacherGradeFilter);
+            }
+
+            document.getElementById('teacher-student-count-badge').innerText = `수강생 목록 (${filtered.length}명 / 전체 ${studentData.length}명)`;
             const tbody = document.getElementById('teacher-student-table-body');
             
-            tbody.innerHTML = studentData.map(student => {
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="p-8 text-center text-slate-400 text-xs">
+                            등록된 학생 데이터가 없습니다.<br>상단의 <strong>[수년치 엑셀 파일 로드]</strong> 또는 <strong>[시험지 사진 오답 스캔]</strong> 버튼으로 학생 성적을 등록해 주세요.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(student => {
                 const totalScore = student.exams.reduce((acc, ex) => acc + ex.score, 0);
                 const avgScore = student.exams.length > 0 ? (totalScore / student.exams.length).toFixed(1) : 0;
                 
@@ -662,12 +684,11 @@
 
                     if (json && json.length > 0) {
                         json.forEach(row => {
-                            // Smart Column Detection
                             const name = row['이름'] || row['학생이름'] || row['학생 명'] || row['Name'] || "수강생";
                             const rawGrade = row['학년'] || row['구분'] || row['Grade'] || "고1";
                             const examTitle = row['시험명'] || row['시험명칭'] || row['모의고사'] || row['Exam'] || "수년치 누적 모의고사";
                             const score = parseInt(row['원점수'] || row['점수'] || row['Score'] || 70);
-                            const wrongRaw = String(row['틀린문항'] || row['틀린번 오'] || row['오답'] || row['Wrong'] || "");
+                            const wrongRaw = String(row['틀린문항'] || row['틀린번호'] || row['오답'] || row['Wrong'] || "");
 
                             const parsedGrade = parseGradeString(rawGrade);
                             const wrongNumbers = wrongRaw.split(/[,;\s]+/).map(n => parseInt(n.replace(/[^0-9]/g, ''))).filter(n => !isNaN(n));
@@ -694,7 +715,7 @@
                             });
                         });
 
-                        alert(`엑셀 파일 [${file.name}] 로드가 완료되었습니다!\n자동 학년 식별(고1/고2/고3)을 거쳐 총 ${json.length}건의 수년 치 누적 오답 데이터가 통합 정리되었습니다.`);
+                        alert(`엑셀 파일 [${file.name}] 로드가 완료되었습니다!\n총 ${json.length}건의 모의고사 성적 데이터가 반영되었습니다.`);
                         renderTeacherDashboard();
                     }
                 } catch (err) {
@@ -727,11 +748,11 @@
                 document.getElementById('image-filename').innerText = file.name;
                 document.getElementById('ocr-preview-area').classList.remove('hidden');
 
-                // Simulated Intelligent OCR Recognition Result
-                document.getElementById('ocr-student-name').value = "우석";
+                // Clear placeholder values for custom input
+                document.getElementById('ocr-student-name').value = "";
                 document.getElementById('ocr-student-grade').value = "g1";
-                document.getElementById('ocr-exam-title').value = "2026년 3월 고1 전국연합모의고사";
-                document.getElementById('ocr-exam-score').value = 78;
+                document.getElementById('ocr-exam-title').value = "2026년 3월 전국연합모의고사";
+                document.getElementById('ocr-exam-score').value = 80;
                 document.getElementById('ocr-exam-wrong').value = "31, 32, 34, 37, 39";
 
                 const saveBtn = document.getElementById('ocr-save-btn');
@@ -743,6 +764,10 @@
 
         function saveOcrResult() {
             const name = document.getElementById('ocr-student-name').value.trim();
+            if (!name) {
+                alert("학생 이름을 입력해 주세요.");
+                return;
+            }
             const grade = document.getElementById('ocr-student-grade').value;
             const gradeLabel = grade === 'g1' ? '고1' : grade === 'g2' ? '고2' : '고3';
             const title = document.getElementById('ocr-exam-title').value;
@@ -751,7 +776,7 @@
 
             const wrongNumbers = wrongRaw.split(/[,;\s]+/).map(n => parseInt(n.replace(/[^0-9]/g, ''))).filter(n => !isNaN(n));
 
-            let student = studentData.find(s => s.name === name);
+            let student = studentData.find(s => s.name === name && s.grade === grade);
 
             if (!student) {
                 student = {
@@ -775,11 +800,9 @@
             closeImageUploadModal();
             alert(`[${name}] 학생의 [${title}] 오답이 성공적으로 누적 데이터에 추가되었습니다!`);
 
-            // Directly Switch & Display Student View
-            switchMode('student');
-            document.getElementById('checkin-grade').value = grade;
-            document.getElementById('checkin-name').value = name;
-            renderStudentDashboard(student);
+            // Switch to Teacher view or Student view
+            switchMode('teacher');
+            renderTeacherDashboard();
         }
     </script>
 </body>
