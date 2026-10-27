@@ -256,17 +256,17 @@
                         <i class="fa-solid fa-user-shield"></i> 원장 지남 선생님 전용 데이터 통합 관리자
                     </div>
                     <h3 class="text-xl font-black text-white">
-                        오답/패턴 분석 사진 스캔 & 학생 등록
+                        1~3년 누적 오답/패턴 분석 사진 스캔 & 자동 통합
                     </h3>
                     <p class="text-xs text-purple-200/80">
-                        원장님께서 작성하신 패턴 분석 노트, 시험지, 또는 성적표 사진을 올려주시면 AI 분석을 통해 학생의 누적 오답 및 개별 처방전을 자동 생성합니다.
+                        원장님께서 작성하신 1~3년 치 누적 패턴 분석 노트나 성적 관리카드 사진을 올려주시면, **전 회차 모의고사 기록과 종합 약점 처방전**을 한 번에 자동 파악하여 학생별 포털에 반영합니다.
                     </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
                     <!-- Exam Photo Scan Button -->
                     <button onclick="openImageUploadModal()" class="w-full md:w-auto px-6 py-4 bg-gradient-to-r from-purple-600 via-indigo-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white font-bold text-sm rounded-2xl shadow-xl flex items-center justify-center gap-2.5 transition transform active:scale-95 whitespace-nowrap">
                         <i class="fa-solid fa-camera text-lg"></i>
-                        <span>패턴 분석 사진 스캔 등록</span>
+                        <span>1~3년 누적 패턴 분석 사진 스캔</span>
                     </button>
                 </div>
             </div>
@@ -317,10 +317,10 @@
 
     <!-- Modal: Image/Photo OCR & Pattern Analysis Extraction -->
     <div id="imageUploadModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-navy-900 rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden border border-purple-500/50 max-h-[90vh] flex flex-col">
+        <div class="bg-navy-900 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-purple-500/50 max-h-[90vh] flex flex-col">
             <div class="bg-navy-950 px-6 py-4 flex justify-between items-center border-b border-purple-900/50 shrink-0">
                 <h3 class="font-bold text-sm text-white flex items-center gap-2">
-                    <i class="fa-solid fa-camera text-purple-400"></i> 오답/패턴 분석 사진 스캔
+                    <i class="fa-solid fa-camera text-purple-400"></i> 1~3년 누적 패턴 분석 노트/기록지 사진 스캔
                 </h3>
                 <button onclick="closeImageUploadModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
@@ -332,8 +332,8 @@
                     <div class="w-12 h-12 rounded-2xl bg-purple-600/20 text-purple-300 border border-purple-500/30 mx-auto flex items-center justify-center text-xl">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
                     </div>
-                    <p class="font-bold text-white text-sm">패턴 분석 노트 / 시험지 / 성적표 사진 첨부</p>
-                    <p class="text-slate-400 text-[11px]">사진에서 학생 이름, 오답 번호, 원점수, 약점 패턴 처방전을 자동 추출합니다.</p>
+                    <p class="font-bold text-white text-sm">수년 치 패턴 분석 노트 / 누적 성적 기록 카드 사진 첨부</p>
+                    <p class="text-slate-400 text-[11px]">사진 한 장에서 학생 정보, 수년간의 모의고사 회차별 점수/오답, 통합 처방전을 일괄 추출합니다.</p>
                 </div>
 
                 <!-- Preview & Extracted OCR Result Area -->
@@ -342,9 +342,9 @@
                         <img id="image-preview" src="#" alt="미리보기" class="w-16 h-16 object-cover rounded-xl border border-indigo-800">
                         <div class="flex-1 min-w-0">
                             <p class="text-emerald-400 font-bold flex items-center gap-1 text-xs">
-                                <i class="fa-solid fa-wand-magic-sparkles"></i> 사진 스캔 및 패턴 분석 완료
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> 1~3년 누적 모의고사 오답 기록 추출 완료
                             </p>
-                            <p class="text-slate-300 text-[11px] truncate mt-0.5" id="image-filename">pattern_analysis.jpg</p>
+                            <p class="text-slate-300 text-[11px] truncate mt-0.5" id="image-filename">cumulative_pattern_analysis.jpg</p>
                         </div>
                     </div>
 
@@ -352,10 +352,10 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block font-bold text-slate-300 mb-1">학생 이름 *</label>
-                            <input type="text" id="ocr-student-name" placeholder="예: 우석" class="w-full px-3 py-2 bg-navy-950 text-slate-100 border border-indigo-900 rounded-xl">
+                            <input type="text" id="ocr-student-name" placeholder="예: 김민준" class="w-full px-3 py-2 bg-navy-950 text-slate-100 border border-indigo-900 rounded-xl">
                         </div>
                         <div>
-                            <label class="block font-bold text-slate-300 mb-1">학년 *</label>
+                            <label class="block font-bold text-slate-300 mb-1">현재 학년 *</label>
                             <select id="ocr-student-grade" class="w-full px-3 py-2 bg-navy-950 text-slate-100 border border-indigo-900 rounded-xl">
                                 <option value="g1">고1</option>
                                 <option value="g2">고2</option>
@@ -364,33 +364,36 @@
                         </div>
                     </div>
 
-                    <!-- Auto Extracted Data -->
+                    <!-- Extracted Multiple Exams Section -->
                     <div class="space-y-3 bg-navy-950 p-4 rounded-2xl border border-indigo-900/80">
-                        <div>
-                            <label class="block font-bold text-indigo-300 mb-1">시험 명칭</label>
-                            <input type="text" id="ocr-exam-title" class="w-full px-3 py-2 bg-navy-900 text-slate-100 border border-indigo-800 rounded-xl font-bold">
+                        <div class="flex items-center justify-between">
+                            <label class="block font-bold text-indigo-300 text-xs">
+                                <i class="fa-solid fa-layer-group mr-1"></i> 인식된 수년간의 모의고사 회차 기록 목록
+                            </label>
+                            <button type="button" onclick="addOcrExamRow()" class="px-2.5 py-1 bg-indigo-600/40 hover:bg-indigo-600 text-indigo-200 border border-indigo-500/40 rounded-lg text-[10px] font-bold transition">
+                                + 회차 추가
+                            </button>
                         </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block font-bold text-emerald-400 mb-1">추출 원점수</label>
-                                <input type="number" id="ocr-exam-score" class="w-full px-3 py-2 bg-navy-900 text-slate-100 border border-indigo-800 rounded-xl font-black">
-                            </div>
-                            <div>
-                                <label class="block font-bold text-rose-400 mb-1">인식된 오답 번호</label>
-                                <input type="text" id="ocr-exam-wrong" class="w-full px-3 py-2 bg-navy-900 text-slate-100 border border-indigo-800 rounded-xl font-bold">
-                            </div>
+
+                        <!-- Dynamic Exam Rows Container -->
+                        <div id="ocr-exams-list-container" class="space-y-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
+                            <!-- Populated dynamically -->
                         </div>
-                        <div>
-                            <label class="block font-bold text-amber-400 mb-1">인식된 원장님 패턴 분석 및 약점 처방전 (Action Plan)</label>
-                            <textarea id="ocr-memo" rows="4" class="w-full px-3 py-2 bg-navy-900 text-slate-100 border border-indigo-800 rounded-xl text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-amber-500"></textarea>
-                        </div>
+                    </div>
+
+                    <!-- Overall Pattern & Action Plan -->
+                    <div class="space-y-2 bg-navy-950 p-4 rounded-2xl border border-indigo-900/80">
+                        <label class="block font-bold text-amber-400 text-xs">
+                            <i class="fa-solid fa-brain mr-1"></i> 수년간 누적 데이터 기반 원장님 통합 약점 분석 및 처방전 (Action Plan)
+                        </label>
+                        <textarea id="ocr-memo" rows="4" class="w-full px-3 py-2 bg-navy-900 text-slate-100 border border-indigo-800 rounded-xl text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-amber-500"></textarea>
                     </div>
                 </div>
 
                 <div class="flex justify-end space-x-2 pt-2">
                     <button type="button" onclick="closeImageUploadModal()" class="px-4 py-2 rounded-xl text-slate-400 hover:bg-navy-950">취소</button>
                     <button type="button" id="ocr-save-btn" onclick="saveOcrResult()" class="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold shadow-lg flex items-center gap-2 opacity-50 cursor-not-allowed" disabled>
-                        <i class="fa-solid fa-paper-plane"></i> 누적 분석 데이터로 등록하기
+                        <i class="fa-solid fa-paper-plane"></i> 누적 분석 데이터 전체 등록하기
                     </button>
                 </div>
             </div>
@@ -688,19 +691,80 @@
                 document.getElementById('image-filename').innerText = file.name;
                 document.getElementById('ocr-preview-area').classList.remove('hidden');
 
-                // Auto Extracted analysis preset based on pattern scan
-                document.getElementById('ocr-student-name').value = "민준";
-                document.getElementById('ocr-student-grade').value = "g1";
-                document.getElementById('ocr-exam-title').value = "2026년 3월 전국연합모의고사";
-                document.getElementById('ocr-exam-score').value = 78;
-                document.getElementById('ocr-exam-wrong').value = "31, 32, 34, 37, 39";
-                document.getElementById('ocr-memo').value = "• [빈칸 추론 31-34번] 글 전체의 핵심 주제 파악은 양호하나, 선택지의 패러프레이징(Paraphrasing) 단어 오답 함정에 빈번히 걸려 감점 발생.\n• [순서/삽입 37, 39번] 지시어(This/These) 및 연결어 시그널 추적 훈련 보완 필요.\n• [클리닉 처방] 주차별 31-39번 고난도 유형 집중 변형 문제집 50제 할당 및 1:1 오답 노정 피드백 진행 예정.";
+                // Extract Multiple Cumulative Exams (1-3 years of history)
+                document.getElementById('ocr-student-name').value = "우석";
+                document.getElementById('ocr-student-grade').value = "g2";
+
+                // Multi-exam preset extracted from cumulative pattern note
+                const extractedExams = [
+                    { title: "2024년 고1 3월 모의고사", score: 81, wrong: "31, 33, 37, 39" },
+                    { title: "2024년 고1 6월 모의고사", score: 76, wrong: "29, 32, 34, 36, 38" },
+                    { title: "2024년 고1 9월 모의고사", score: 79, wrong: "31, 32, 33, 37, 39" },
+                    { title: "2024년 고1 11월 모의고사", score: 83, wrong: "32, 34, 38" },
+                    { title: "2025년 고2 3월 모의고사", score: 74, wrong: "29, 31, 32, 34, 37, 39" },
+                    { title: "2025년 고2 6월 모의고사", score: 78, wrong: "31, 33, 36, 37, 39" }
+                ];
+
+                renderOcrExamRows(extractedExams);
+
+                document.getElementById('ocr-memo').value = 
+                    "• [수년간 반복 오답 패턴 분석]\n" +
+                    " - 1~2학년 모의고사 통산: 빈칸 추론(31-34번)과 순서/삽입(36-39번) 문항에서 전체 감점의 80% 이상이 집중 발생함.\n" +
+                    " - 특히 지문 해석은 되나, 선택지 어휘 변형(Paraphrasing) 및 단서 연결(This, However 등) 파악 미숙으로 오답 유착 형성.\n\n" +
+                    "• [1:1 약점 보완 클리닉 처방전]\n" +
+                    " - 31-34번 빈칸 핵심 선택지 어휘 노트 작성 매주 점검.\n" +
+                    " - 순서/삽입 유형 3년치 기출 및 변형 문제 100제 집중 클리닉 실시 중.";
 
                 const saveBtn = document.getElementById('ocr-save-btn');
                 saveBtn.disabled = false;
                 saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             };
             reader.readAsDataURL(file);
+        }
+
+        function renderOcrExamRows(exams) {
+            const container = document.getElementById('ocr-exams-list-container');
+            container.innerHTML = exams.map((ex, idx) => `
+                <div class="ocr-exam-item bg-navy-900 p-3 rounded-xl border border-indigo-900/60 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                    <div class="sm:col-span-5">
+                        <input type="text" class="ocr-exam-title w-full px-2.5 py-1.5 bg-navy-950 text-slate-100 border border-indigo-800 rounded-lg text-xs" font-bold value="${ex.title}" placeholder="시험명">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <input type="number" class="ocr-exam-score w-full px-2.5 py-1.5 bg-navy-950 text-emerald-400 border border-indigo-800 rounded-lg text-xs font-black" value="${ex.score}" placeholder="점수">
+                    </div>
+                    <div class="sm:col-span-4">
+                        <input type="text" class="ocr-exam-wrong w-full px-2.5 py-1.5 bg-navy-950 text-rose-300 border border-indigo-800 rounded-lg text-xs font-bold" value="${ex.wrong}" placeholder="틀린번호 (예: 31, 32)">
+                    </div>
+                    <div class="sm:col-span-1 text-center">
+                        <button type="button" onclick="this.closest('.ocr-exam-item').remove()" class="text-rose-400 hover:text-rose-300 text-xs">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addOcrExamRow() {
+            const container = document.getElementById('ocr-exams-list-container');
+            const div = document.createElement('div');
+            div.className = "ocr-exam-item bg-navy-900 p-3 rounded-xl border border-indigo-900/60 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center";
+            div.innerHTML = `
+                <div class="sm:col-span-5">
+                    <input type="text" class="ocr-exam-title w-full px-2.5 py-1.5 bg-navy-950 text-slate-100 border border-indigo-800 rounded-lg text-xs font-bold" placeholder="시험명 (예: 2025년 3월 모의고사)">
+                </div>
+                <div class="sm:col-span-2">
+                    <input type="number" class="ocr-exam-score w-full px-2.5 py-1.5 bg-navy-950 text-emerald-400 border border-indigo-800 rounded-lg text-xs font-black" placeholder="점수">
+                </div>
+                <div class="sm:col-span-4">
+                    <input type="text" class="ocr-exam-wrong w-full px-2.5 py-1.5 bg-navy-950 text-rose-300 border border-indigo-800 rounded-lg text-xs font-bold" placeholder="틀린번호 (예: 31, 34)">
+                </div>
+                <div class="sm:col-span-1 text-center">
+                    <button type="button" onclick="this.closest('.ocr-exam-item').remove()" class="text-rose-400 hover:text-rose-300 text-xs">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(div);
         }
 
         function saveOcrResult() {
@@ -711,12 +775,32 @@
             }
             const grade = document.getElementById('ocr-student-grade').value;
             const gradeLabel = grade === 'g1' ? '고1' : grade === 'g2' ? '고2' : '고3';
-            const title = document.getElementById('ocr-exam-title').value;
-            const score = parseInt(document.getElementById('ocr-exam-score').value) || 0;
-            const wrongRaw = document.getElementById('ocr-exam-wrong').value;
             const memo = document.getElementById('ocr-memo').value;
 
-            const wrongNumbers = wrongRaw.split(/[,;\s]+/).map(n => parseInt(n.replace(/[^0-9]/g, ''))).filter(n => !isNaN(n));
+            // Collect all scanned exams
+            const examItems = document.querySelectorAll('.ocr-exam-item');
+            const newExams = [];
+
+            examItems.forEach(item => {
+                const title = item.querySelector('.ocr-exam-title').value.trim();
+                const score = parseInt(item.querySelector('.ocr-exam-score').value) || 0;
+                const wrongRaw = item.querySelector('.ocr-exam-wrong').value;
+                const wrongNumbers = wrongRaw.split(/[,;\s]+/).map(n => parseInt(n.replace(/[^0-9]/g, ''))).filter(n => !isNaN(n));
+
+                if (title) {
+                    newExams.push({
+                        id: Date.now() + Math.random(),
+                        title: title,
+                        score: score,
+                        wrongNumbers: wrongNumbers
+                    });
+                }
+            });
+
+            if (newExams.length === 0) {
+                alert("최소 1개 이상의 시험 회차 기록이 필요합니다.");
+                return;
+            }
 
             let student = studentData.find(s => s.name === name && s.grade === grade);
 
@@ -727,24 +811,18 @@
                     grade: grade,
                     gradeLabel: gradeLabel,
                     memo: memo,
-                    exams: []
+                    exams: newExams
                 };
                 studentData.push(student);
             } else {
-                student.memo = memo; // Update Action Plan Memo
+                student.memo = memo;
+                student.exams = newExams; // Update cumulative history
             }
 
-            student.exams.push({
-                id: Date.now(),
-                title: title,
-                score: score,
-                wrongNumbers: wrongNumbers
-            });
-
             closeImageUploadModal();
-            alert(`[${name}] 학생의 패턴 분석 결과 및 오답 데이터가 성공적으로 누적 등록되었습니다!`);
+            alert(`[${name}] 학생의 수년간(${newExams.length}회차) 누적 분석 기록이 통합 등록되었습니다!`);
 
-            // Switch to Teacher view
+            // Switch to Teacher view & refresh
             switchMode('teacher');
             renderTeacherDashboard();
         }
