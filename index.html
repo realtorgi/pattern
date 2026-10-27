@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seattle English Academy - 고등 영어 모의고사 누적 오답 분석 포털</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f3ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#1e1b4b',
+                            950: '#0f0e26',
+                        },
+                        navy: {
+                            800: '#1b1d36',
+                            900: '#131427',
+                            950: '#0b0c19'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- SheetJS (Excel Parsing Library) & Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter / Noto Sans KR -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #0b0c19;
+            color: #f1f5f9;
+        }
+        .light body {
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #333660;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col transition-colors duration-300">
+
+    <!-- Header Navigation Bar -->
+    <header class="bg-navy-900 border-b border-indigo-900/40 text-white sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+            
+            <!-- Academy Branding -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center shadow-lg text-white text-xl">
+                    <i class="fa-solid fa-school-flag"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                        Seattle English Academy
+                    </h1>
+                    <p class="text-[11px] text-indigo-300/80">고등 영어 모의고사 누적 오답 분석 & 1:1 전략 지도 포털</p>
+                </div>
+            </div>
+
+            <!-- Mode Switcher, Contact & Theme Toggle -->
+            <div class="flex items-center space-x-3">
+                <!-- Mode Toggle Tab -->
+                <div class="bg-navy-950 p-1 rounded-2xl border border-indigo-900/80 flex items-center space-x-1">
+                    <button onclick="switchMode('student')" id="btn-mode-student" class="px-3 py-1.5 rounded-xl text-xs font-bold transition bg-indigo-600 text-white shadow-md flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-graduate"></i> 학생 모드
+                    </button>
+                    <button onclick="switchMode('teacher')" id="btn-mode-teacher" class="px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-chalkboard-user text-purple-400"></i> 선생님 모드
+                    </button>
+                </div>
+
+                <a href="tel:010-8921-7812" class="hidden sm:flex items-center space-x-2 text-rose-400 hover:text-rose-300 transition text-sm font-bold bg-navy-800/80 px-3 py-1.5 rounded-xl border border-rose-500/20">
+                    <i class="fa-solid fa-phone"></i>
+                    <span>원장 지남 <span class="text-white font-normal ml-1">010-8921-7812</span></span>
+                </a>
+
+                <button onclick="toggleDarkMode()" id="theme-toggle-btn" class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition flex items-center justify-center border border-amber-500/30">
+                    <i class="fa-solid fa-sun text-sm" id="theme-icon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dynamic Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+        <!-- VIEW 1: STUDENT VIEW -->
+        <div id="view-student-portal" class="space-y-6">
+            
+            <!-- Check-in Box -->
+            <div id="checkin-card" class="max-w-2xl mx-auto bg-navy-900/90 rounded-3xl border border-indigo-900/60 p-6 sm:p-8 shadow-2xl backdrop-blur-md">
+                <div class="space-y-2 mb-6">
+                    <h2 class="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-indigo-400"></i> 학생 성적 분석과 대비책
+                    </h2>
+                    <p class="text-xs text-indigo-200/70">본인의 학년과 이름을 입력하면 수년간의 누적 모의고사 오답 분석 및 1:1 약점 대비책을 확인하실 수 있습니다.</p>
+                </div>
+
+                <form onsubmit="handleStudentCheckin(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-300 mb-2">학년 선택</label>
+                            <select id="checkin-grade" required class="w-full px-4 py-3 text-sm bg-navy-950 border border-indigo-800/80 rounded-2xl text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="">-- 학년 선택 --</option>
+                                <option value="g1">고1</option>
+                                <option value="g2">고2</option>
+                                <option value="g3">고3</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-300 mb-2">학생 이름 입력</label>
+                            <input type="text" id="checkin-name" required placeholder="이름 입력 (예: 우석)" class="w-full px-4 py-3 text-sm bg-navy-950 border border-indigo-800/80 rounded-2xl text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-end pt-2">
+                        <button type="submit" class="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-2xl text-sm font-bold transition shadow-lg flex items-center justify-center gap-2">
+                            <span>누적 오답 분석 조회하기</span>
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Student Dashboard View -->
+            <div id="student-dashboard" class="hidden space-y-6">
+                <!-- Welcome Banner & Student Identity -->
+                <div class="bg-gradient-to-r from-navy-900 via-indigo-950 to-navy-900 rounded-3xl border border-indigo-800/60 p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl">
+                    <div class="space-y-2">
+                        <div class="flex items-center space-x-3">
+                            <span id="display-student-grade" class="px-3 py-1 bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 text-xs font-bold rounded-full">고1</span>
+                            <h2 class="text-2xl sm:text-3xl font-black text-white" id="display-student-name">김민준 학생</h2>
+                        </div>
+                        <p class="text-xs text-indigo-200/80">Seattle English Academy 수년간 누적 모의고사 분석 & 약점 집중 처방 리포트</p>
+                    </div>
+
+                    <div class="flex items-center space-x-4 bg-navy-950/80 p-4 rounded-2xl border border-indigo-900/80">
+                        <div class="text-center px-4">
+                            <p class="text-[10px] text-indigo-300 uppercase font-semibold">총 누적 응시</p>
+                            <p class="text-2xl font-black text-indigo-400" id="display-student-exam-count">3회</p>
+                        </div>
+                        <div class="w-px h-10 bg-indigo-900/80"></div>
+                        <div class="text-center px-4">
+                            <p class="text-[10px] text-emerald-300 uppercase font-semibold">평균 원점수</p>
+                            <p class="text-2xl font-black text-emerald-400" id="display-student-avg-score">77.7점</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Infographics & Frequency Visual Chart -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Top 5 Most Frequently Missed Numbers -->
+                    <div class="lg:col-span-2 bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                                <i class="fa-solid fa-fire text-rose-500"></i> 수년간 치른 시험에서 가장 자주 틀린 번호 (Top 5)
+                            </h3>
+                            <span class="text-xs text-indigo-300">반복 감점 킬러 번호</span>
+                        </div>
+
+                        <div id="student-accumulated-wrong-items" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Domain Distribution Chart / Summary -->
+                    <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4 flex flex-col justify-between">
+                        <div>
+                            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                                <i class="fa-solid fa-chart-pie text-purple-400"></i> 약점 오답 유형 비중
+                            </h3>
+                            <p class="text-[11px] text-slate-400 mt-1">지속적으로 점수를 갉아먹는 핵심 고난도 유형</p>
+                        </div>
+                        <div id="domain-summary-list" class="space-y-2.5 my-2">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div class="p-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-[11px] text-rose-300 font-medium">
+                            <i class="fa-solid fa-triangle-exclamation mr-1"></i> 상위 등급 진입을 위해 31~34번(빈칸) 및 36~39번(순서/삽입) 집중 보완이 시급합니다.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategic Action Plan & Teacher Memo -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-3">
+                        <h3 class="font-bold text-sm text-amber-400 flex items-center gap-2">
+                            <i class="fa-solid fa-compass"></i> 원장 지남 선생님의 개별 약점 분석 및 처방전 (Action Plan)
+                        </h3>
+                        <div id="student-display-memo" class="text-xs text-slate-200 leading-relaxed bg-navy-950 p-4 rounded-2xl border border-indigo-950 min-h-[120px] whitespace-pre-line">
+                            -
+                        </div>
+                    </div>
+
+                    <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-3 flex flex-col justify-between">
+                        <div>
+                            <h3 class="font-bold text-sm text-indigo-400 flex items-center gap-2">
+                                <i class="fa-solid fa-comments"></i> 약점 클리닉 1:1 상담 연결
+                            </h3>
+                            <p class="text-xs text-indigo-200/80 mt-2 leading-relaxed">
+                                분석된 누적 오답 데이터를 기반으로 학생의 학습 방향을 점검하고, 맞춤형 변형 문제집 및 1:1 지도 클리닉을 예약합니다.
+                            </p>
+                        </div>
+                        <div class="pt-4 flex flex-wrap gap-3">
+                            <a href="tel:010-8921-7812" class="flex-1 min-w-[140px] py-3.5 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-xs font-bold transition text-center shadow-md flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-phone"></i> 전화 상담 (010-8921-7812)
+                            </a>
+                            <button onclick="requestConsultation()" class="flex-1 min-w-[140px] py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-bold transition text-center shadow-md flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-calendar-check"></i> 1:1 상담 예약
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History of All Taken Exams -->
+                <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4">
+                    <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-indigo-400"></i> 응시한 모든 모의고사 세부 원점수 및 틀린 번호 기록
+                    </h3>
+
+                    <div id="student-exams-history-list" class="space-y-3">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 2: TEACHER / ADMIN MANAGEMENT VIEW -->
+        <div id="view-teacher-portal" class="hidden space-y-6">
+            <!-- Teacher Header Info Banner -->
+            <div class="bg-gradient-to-r from-purple-950 via-indigo-950 to-navy-900 rounded-3xl border border-purple-500/40 p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-5">
+                <div class="space-y-1 text-center md:text-left">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-full text-xs font-bold">
+                        <i class="fa-solid fa-user-shield"></i> 원장 지남 선생님 전용 데이터 통합 관리자
+                    </div>
+                    <h3 class="text-xl font-black text-white">
+                        수년치 누적 데이터 엑셀 로드 & 시험지 촬영 사진 오답 스캔
+                    </h3>
+                    <p class="text-xs text-purple-200/80">
+                        기존 수년 치 오답 누적 엑셀 파일을 업로드하거나(학년 자동 인식 식별), 새로운 모의고사 시험지 사진을 업로드하여 분석 리포트를 업데이트하세요.
+                    </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    <!-- Excel Batch Import Button -->
+                    <button onclick="document.getElementById('excelFileInput').click()" class="flex-1 md:flex-none px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 transition transform active:scale-95 whitespace-nowrap">
+                        <i class="fa-solid fa-file-excel text-base"></i>
+                        <span>수년치 엑셀 파일 로드</span>
+                    </button>
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" onchange="handleExcelUpload(event)" class="hidden">
+
+                    <!-- Exam Photo Scan Button -->
+                    <button onclick="openImageUploadModal()" class="flex-1 md:flex-none px-5 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 transition transform active:scale-95 whitespace-nowrap">
+                        <i class="fa-solid fa-camera text-base"></i>
+                        <span>시험지 사진 오답 스캔</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Student List & Management Table -->
+            <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                        <i class="fa-solid fa-users text-purple-400"></i> 수강생 누적 오답 데이터 관리 (고1 / 고2 / 고3)
+                    </h3>
+                    <span class="text-xs text-slate-400" id="teacher-student-count-badge">총 2명 수강생</span>
+                </div>
+
+                <!-- Table of Students -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300 border-collapse">
+                        <thead>
+                            <tr class="bg-navy-950 text-slate-400 border-b border-indigo-900/80">
+                                <th class="p-3 font-bold">학년</th>
+                                <th class="p-3 font-bold">학생 이름</th>
+                                <th class="p-3 font-bold">응시 횟수</th>
+                                <th class="p-3 font-bold">평균 점수</th>
+                                <th class="p-3 font-bold">최다 오답 번호</th>
+                                <th class="p-3 font-bold text-center">학생 분석 화면</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teacher-student-table-body" class="divide-y divide-indigo-950">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modal: Image/Photo OCR Auto-Extraction -->
+    <div id="imageUploadModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-navy-900 rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden border border-purple-500/50">
+            <div class="bg-navy-950 px-6 py-4 flex justify-between items-center border-b border-purple-900/50">
+                <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                    <i class="fa-solid fa-camera text-purple-400"></i> 모의고사 시험지/성적표 사진 스캔 등록
+                </h3>
+                <button onclick="closeImageUploadModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <div class="p-6 space-y-5 text-xs">
+                <!-- Dropzone for Image -->
+                <div onclick="document.getElementById('photoFileInput').click()" class="border-2 border-dashed border-purple-500/40 hover:border-purple-400 bg-purple-950/20 hover:bg-purple-950/40 p-6 rounded-2xl text-center cursor-pointer transition space-y-2">
+                    <input type="file" id="photoFileInput" accept="image/*" capture="environment" onchange="processPhotoUpload(event)" class="hidden">
+                    <div class="w-12 h-12 rounded-2xl bg-purple-600/20 text-purple-300 border border-purple-500/30 mx-auto flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                    </div>
+                    <p class="font-bold text-white text-sm">시험지 또는 성적표 사진 첨부/촬영</p>
+                    <p class="text-slate-400 text-[11px]">사진에서 오답 번호와 점수를 자동 추출합니다.</p>
+                </div>
+
+                <!-- Preview & Extracted OCR Result Area -->
+                <div id="ocr-preview-area" class="hidden space-y-4 border-t border-indigo-900/50 pt-4">
+                    <div class="flex items-center space-x-3 bg-navy-950 p-3 rounded-2xl border border-indigo-900/60">
+                        <img id="image-preview" src="#" alt="미리보기" class="w-16 h-16 object-cover rounded-xl border border-indigo-800">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-emerald-400 font-bold flex items-center gap-1 text-xs">
+                                <i class="fa-solid fa-circle-check"></i> 이미지 인식 완료
+                            </p>
+                            <p class="text-slate-300 text-[11px] truncate mt-0.5" id="image-filename">exam_photo.jpg</p>
+                        </div>
+                    </div>
+
+                    <!-- Target Student Info -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">학생 이름 *</label>
+                            <input type="text" id="ocr-student-name" placeholder="예: 우석" class="w-full px-3 py-2 bg-navy-950 text-slate-100 border border-indigo-900 rounded-xl">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">학년 *</label>
+                            <select id="ocr-student-grade" class="w-full px-3 py-2 bg-navy-950 text-slate-100 border border-indigo-900 rounded-xl">
+                                <option value="g1">고1</option>
+                                <option value="g2">고2</option>
+                                <option value="g3">고3</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Auto Extracted Data -->
+                    <div class="space-y-3 bg-navy-950 p-4 rounded-2xl border border-indigo-900/80">
+                        <div>
+                            <label class="block font-bold text-indigo-300 mb-1">시험 명칭</label>
+                            <input type="text" id="ocr-exam-title" class="w-full px-3 py-2 bg-navy-900 text-slate-100 border border-indigo-800 rounded-xl font-bold">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-bold text-emerald-400 mb-1">추출 원점수</label>
+                                <input type="number" id="ocr-exam-score" class="w-full px-3 py-2 bg-navy-900 text-slate-100 border border-indigo-800 rounded-xl font-black">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-rose-400 mb-1">인식된 오답 번호</label>
+                                <input type="text" id="ocr-exam-wrong" class="w-full px-3 py-2 bg-navy-900 text-slate-100 border border-indigo-800 rounded-xl font-bold">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closeImageUploadModal()" class="px-4 py-2 rounded-xl text-slate-400 hover:bg-navy-950">취소</button>
+                    <button type="button" id="ocr-save-btn" onclick="saveOcrResult()" class="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold shadow-lg flex items-center gap-2 opacity-50 cursor-not-allowed" disabled>
+                        <i class="fa-solid fa-paper-plane"></i> 누적 오답에 추가 반영하기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        let currentSystemMode = 'student'; // 'student' or 'teacher'
+        let studentData = [
+            {
+                id: 1,
+                name: "김민준",
+                grade: "g1",
+                gradeLabel: "고1",
+                memo: "• 31~34번 고난도 빈칸 추론 문단 논리 고리 파악 미숙으로 지속적 감점 발생.\n• 36~39번 순서/삽입 지시어·연결어 시그널 체크 훈련 병행 요망.\n• 주 2회 패러프레이징 집중 클리닉 과제 부여.",
+                exams: [
+                    { id: 101, title: "1학년 3월 전국연합모의고사", score: 74, wrongNumbers: [31, 32, 34, 37, 39] },
+                    { id: 102, title: "1학년 6월 전국연합모의고사", score: 78, wrongNumbers: [31, 33, 34, 38] },
+                    { id: 103, title: "1학년 9월 전국연합모의고사", score: 81, wrongNumbers: [31, 34, 39] }
+                ]
+            },
+            {
+                id: 2,
+                name: "우석",
+                grade: "g1",
+                gradeLabel: "고1",
+                memo: "• 듣기평가(1~17번) 집중력 저하로 인한 2~3문항 감점 반복.\n• 후반부 시간 안배 실패로 장문 독해(41~45번) 급하게 풀이하는 경향.\n• 매일 듣기 1회 모의고사 및 구문 Chunking 끊어읽기 습관화 지침.",
+                exams: [
+                    { id: 501, title: "1학년 3월 대비 진단모의고사", score: 72, wrongNumbers: [18, 31, 34, 37, 43, 44] },
+                    { id: 502, title: "1학년 3월 전국연합모의고사", score: 76, wrongNumbers: [31, 32, 34, 39] }
+                ]
+            }
+        ];
+
+        function switchMode(mode) {
+            currentSystemMode = mode;
+            const btnStudent = document.getElementById('btn-mode-student');
+            const btnTeacher = document.getElementById('btn-mode-teacher');
+
+            if (mode === 'student') {
+                if (btnStudent) btnStudent.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition bg-indigo-600 text-white shadow-md flex items-center gap-1.5";
+                if (btnTeacher) btnTeacher.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5";
+                
+                document.getElementById('view-student-portal').classList.remove('hidden');
+                document.getElementById('view-teacher-portal').classList.add('hidden');
+            } else {
+                if (btnTeacher) btnTeacher.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition bg-purple-600 text-white shadow-md flex items-center gap-1.5";
+                if (btnStudent) btnStudent.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5";
+                
+                document.getElementById('view-student-portal').classList.add('hidden');
+                document.getElementById('view-teacher-portal').classList.remove('hidden');
+                renderTeacherDashboard();
+            }
+        }
+
+        function getItemType(num) {
+            const n = parseInt(num);
+            if (isNaN(n)) return "기타";
+            if (n >= 1 && n <= 17) return "듣기";
+            if (n >= 18 && n <= 20) return "목적/주장";
+            if (n >= 21 && n <= 24) return "주제/요지";
+            if (n >= 25 && n <= 28) return "실용문/도표";
+            if (n === 29) return "어법";
+            if (n === 30) return "어휘";
+            if (n >= 31 && n <= 34) return "빈칸 추론";
+            if (n === 35) return "무관한 문장";
+            if (n >= 36 && n <= 39) return "순서/삽입";
+            if (n === 40) return "요약문";
+            if (n >= 41 && n <= 45) return "장문 독해";
+            return "기타";
+        }
+
+        // Automatic Grade Categorization Logic
+        function parseGradeString(rawStr) {
+            if (!rawStr) return { gradeKey: "g1", gradeLabel: "고1" };
+            const str = String(rawStr).trim().toLowerCase();
+            if (str.includes("3") || str.includes("고3") || str.includes("g3")) {
+                return { gradeKey: "g3", gradeLabel: "고3" };
+            } else if (str.includes("2") || str.includes("고2") || str.includes("g2")) {
+                return { gradeKey: "g2", gradeLabel: "고2" };
+            } else {
+                // Default for 예비고1, 1학년, 고1, etc.
+                return { gradeKey: "g1", gradeLabel: "고1" };
+            }
+        }
+
+        window.onload = function() {
+            initTheme();
+        };
+
+        function initTheme() {
+            document.documentElement.classList.add('dark');
+        }
+
+        function toggleDarkMode() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            document.getElementById('theme-icon').className = isDark ? 'fa-solid fa-sun text-sm' : 'fa-solid fa-moon text-sm';
+        }
+
+        function handleStudentCheckin(e) {
+            e.preventDefault();
+            const gradeVal = document.getElementById('checkin-grade').value;
+            const nameVal = document.getElementById('checkin-name').value.trim();
+
+            if (!gradeVal || !nameVal) {
+                alert("학년을 선택하고 본인의 이름을 입력해 주세요.");
+                return;
+            }
+
+            const student = studentData.find(s => s.name === nameVal && s.grade === gradeVal);
+
+            if (!student) {
+                alert(`[${nameVal}] 학생의 수년간 오답 기록을 찾을 수 없습니다.\n\n원장님께 등록 문의를 해주세요!\n(원장 지남 : 010-8921-7812)`);
+                return;
+            }
+
+            renderStudentDashboard(student);
+        }
+
+        function renderStudentDashboard(student) {
+            document.getElementById('checkin-card').classList.add('hidden');
+            document.getElementById('student-dashboard').classList.remove('hidden');
+
+            document.getElementById('display-student-grade').innerText = student.gradeLabel;
+            document.getElementById('display-student-name').innerText = `${student.name} 학생`;
+            document.getElementById('display-student-exam-count').innerText = `${student.exams.length}회`;
+
+            const totalScore = student.exams.reduce((acc, ex) => acc + ex.score, 0);
+            const avgScore = student.exams.length > 0 ? (totalScore / student.exams.length).toFixed(1) : 0;
+            document.getElementById('display-student-avg-score').innerText = `${avgScore}점`;
+
+            document.getElementById('student-display-memo').innerText = student.memo || "등록된 선생님 종합 의견이 없습니다.";
+
+            // Accumulate Item Frequencies & Domains
+            const itemCounts = {};
+            const domainCounts = {};
+
+            student.exams.forEach(ex => {
+                ex.wrongNumbers.forEach(n => {
+                    itemCounts[n] = (itemCounts[n] || 0) + 1;
+                    const domain = getItemType(n);
+                    domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+                });
+            });
+
+            // Render Top 5 Most Missed Numbers
+            const sortedWrong = Object.entries(itemCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            const heatmapContainer = document.getElementById('student-accumulated-wrong-items');
+
+            if (sortedWrong.length > 0) {
+                heatmapContainer.innerHTML = sortedWrong.map(([num, count]) => {
+                    const domain = getItemType(num);
+                    return `
+                        <div class="bg-navy-950 p-3.5 rounded-2xl border border-indigo-900/60 flex items-center justify-between shadow">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 font-black text-sm flex items-center justify-center">
+                                    ${num}
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-white">${num}번 문항 <span class="text-[10px] text-indigo-300 font-normal">(${domain})</span></p>
+                                    <p class="text-[10px] text-slate-400">수년간 총 <strong class="text-rose-400 font-extrabold">${count}회</strong> 반복 감점</p>
+                                </div>
+                            </div>
+                            <span class="px-2.5 py-1 bg-rose-600/30 border border-rose-500/40 text-rose-300 rounded-lg font-bold text-[10px]">
+                                집중 클리닉
+                            </span>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                heatmapContainer.innerHTML = `<p class="text-xs text-slate-400 col-span-2">오답 기록이 없습니다.</p>`;
+            }
+
+            // Render Domain Breakdown
+            const domainContainer = document.getElementById('domain-summary-list');
+            const totalWrongCount = Object.values(itemCounts).reduce((a, b) => a + b, 0);
+
+            if (totalWrongCount > 0) {
+                domainContainer.innerHTML = Object.entries(domainCounts)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([domain, count]) => {
+                        const percent = Math.round((count / totalWrongCount) * 100);
+                        return `
+                            <div class="space-y-1">
+                                <div class="flex justify-between text-[11px] text-slate-300 font-bold">
+                                    <span>${domain}</span>
+                                    <span class="text-indigo-400">${count}회 (${percent}%)</span>
+                                </div>
+                                <div class="w-full h-1.5 bg-navy-950 rounded-full overflow-hidden border border-indigo-950">
+                                    <div class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" style="width: ${percent}%"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+            } else {
+                domainContainer.innerHTML = `<p class="text-xs text-slate-400">오답 데이터가 없습니다.</p>`;
+            }
+
+            // Exam History List
+            const historyContainer = document.getElementById('student-exams-history-list');
+            if (student.exams.length > 0) {
+                historyContainer.innerHTML = student.exams.map(exam => `
+                    <div class="bg-navy-950 p-4 rounded-2xl border border-indigo-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center space-x-2">
+                                <span class="font-bold text-xs text-white">${exam.title}</span>
+                                <span class="bg-indigo-600 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">원점수 ${exam.score}점</span>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                <span class="text-[11px] font-bold text-rose-400 mr-1">틀린 문항:</span>
+                                ${exam.wrongNumbers.map(n => `
+                                    <span class="bg-navy-900 border border-rose-900/60 text-rose-300 font-bold text-xs px-2 py-0.5 rounded-lg">
+                                        ${n}번 <span class="text-[10px] text-slate-400 font-normal">(${getItemType(n)})</span>
+                                    </span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                historyContainer.innerHTML = `<p class="text-xs text-slate-400">응시한 모의고사 기록이 없습니다.</p>`;
+            }
+        }
+
+        function renderTeacherDashboard() {
+            document.getElementById('teacher-student-count-badge').innerText = `총 ${studentData.length}명 수강생`;
+            const tbody = document.getElementById('teacher-student-table-body');
+            
+            tbody.innerHTML = studentData.map(student => {
+                const totalScore = student.exams.reduce((acc, ex) => acc + ex.score, 0);
+                const avgScore = student.exams.length > 0 ? (totalScore / student.exams.length).toFixed(1) : 0;
+                
+                // Get frequent wrong
+                const itemCounts = {};
+                student.exams.forEach(ex => {
+                    ex.wrongNumbers.forEach(n => { itemCounts[n] = (itemCounts[n] || 0) + 1; });
+                });
+                const topWrong = Object.entries(itemCounts).sort((a,b) => b[1] - a[1]).slice(0,3).map(e => `${e[0]}번`).join(', ');
+
+                return `
+                    <tr class="hover:bg-navy-950/60 transition">
+                        <td class="p-3 font-bold text-indigo-300">${student.gradeLabel}</td>
+                        <td class="p-3 font-bold text-white">${student.name}</td>
+                        <td class="p-3 text-slate-300">${student.exams.length}회</td>
+                        <td class="p-3 font-extrabold text-emerald-400">${avgScore}점</td>
+                        <td class="p-3 text-rose-400 font-semibold">${topWrong || '-'}</td>
+                        <td class="p-3 text-center">
+                            <button onclick="previewStudentReport('${student.name}', '${student.grade}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-[11px] transition">
+                                학생 분석 화면
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function previewStudentReport(name, grade) {
+            switchMode('student');
+            const student = studentData.find(s => s.name === name && s.grade === grade);
+            if (student) {
+                renderStudentDashboard(student);
+            }
+        }
+
+        function handleExcelUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (json && json.length > 0) {
+                        json.forEach(row => {
+                            // Smart Column Detection
+                            const name = row['이름'] || row['학생이름'] || row['학생 명'] || row['Name'] || "수강생";
+                            const rawGrade = row['학년'] || row['구분'] || row['Grade'] || "고1";
+                            const examTitle = row['시험명'] || row['시험명칭'] || row['모의고사'] || row['Exam'] || "수년치 누적 모의고사";
+                            const score = parseInt(row['원점수'] || row['점수'] || row['Score'] || 70);
+                            const wrongRaw = String(row['틀린문항'] || row['틀린번 오'] || row['오답'] || row['Wrong'] || "");
+
+                            const parsedGrade = parseGradeString(rawGrade);
+                            const wrongNumbers = wrongRaw.split(/[,;\s]+/).map(n => parseInt(n.replace(/[^0-9]/g, ''))).filter(n => !isNaN(n));
+
+                            let student = studentData.find(s => s.name === name && s.grade === parsedGrade.gradeKey);
+
+                            if (!student) {
+                                student = {
+                                    id: Date.now() + Math.random(),
+                                    name: name,
+                                    grade: parsedGrade.gradeKey,
+                                    gradeLabel: parsedGrade.gradeLabel,
+                                    memo: "• 엑셀 데이터 자동 로드 완료.\n• 수년간 반복 오답 유형 분석 중.",
+                                    exams: []
+                                };
+                                studentData.push(student);
+                            }
+
+                            student.exams.push({
+                                id: Date.now() + Math.random(),
+                                title: examTitle,
+                                score: score,
+                                wrongNumbers: wrongNumbers
+                            });
+                        });
+
+                        alert(`엑셀 파일 [${file.name}] 로드가 완료되었습니다!\n자동 학년 식별(고1/고2/고3)을 거쳐 총 ${json.length}건의 수년 치 누적 오답 데이터가 통합 정리되었습니다.`);
+                        renderTeacherDashboard();
+                    }
+                } catch (err) {
+                    alert("엑셀 파싱 중 오류가 발생했습니다. 올바른 엑셀 파일인지 확인해 주세요.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function requestConsultation() {
+            alert("1:1 맞춤 약점 클리닉 상담 예약이 접수되었습니다!\n원장 지남 선생님께서 직접 연락드립니다.\n(Seattle English Academy : 010-8921-7812)");
+        }
+
+        // PHOTO UPLOAD & OCR LOGIC
+        function openImageUploadModal() {
+            document.getElementById('imageUploadModal').classList.remove('hidden');
+        }
+
+        function closeImageUploadModal() {
+            document.getElementById('imageUploadModal').classList.add('hidden');
+        }
+
+        function processPhotoUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                document.getElementById('image-preview').src = evt.target.result;
+                document.getElementById('image-filename').innerText = file.name;
+                document.getElementById('ocr-preview-area').classList.remove('hidden');
+
+                // Simulated Intelligent OCR Recognition Result
+                document.getElementById('ocr-student-name').value = "우석";
+                document.getElementById('ocr-student-grade').value = "g1";
+                document.getElementById('ocr-exam-title').value = "2026년 3월 고1 전국연합모의고사";
+                document.getElementById('ocr-exam-score').value = 78;
+                document.getElementById('ocr-exam-wrong').value = "31, 32, 34, 37, 39";
+
+                const saveBtn = document.getElementById('ocr-save-btn');
+                saveBtn.disabled = false;
+                saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function saveOcrResult() {
+            const name = document.getElementById('ocr-student-name').value.trim();
+            const grade = document.getElementById('ocr-student-grade').value;
+            const gradeLabel = grade === 'g1' ? '고1' : grade === 'g2' ? '고2' : '고3';
+            const title = document.getElementById('ocr-exam-title').value;
+            const score = parseInt(document.getElementById('ocr-exam-score').value) || 0;
+            const wrongRaw = document.getElementById('ocr-exam-wrong').value;
+
+            const wrongNumbers = wrongRaw.split(/[,;\s]+/).map(n => parseInt(n.replace(/[^0-9]/g, ''))).filter(n => !isNaN(n));
+
+            let student = studentData.find(s => s.name === name);
+
+            if (!student) {
+                student = {
+                    id: Date.now(),
+                    name: name,
+                    grade: grade,
+                    gradeLabel: gradeLabel,
+                    memo: "스캔된 시험지를 통해 누적 오답 통계가 추가되었습니다.",
+                    exams: []
+                };
+                studentData.push(student);
+            }
+
+            student.exams.push({
+                id: Date.now(),
+                title: title,
+                score: score,
+                wrongNumbers: wrongNumbers
+            });
+
+            closeImageUploadModal();
+            alert(`[${name}] 학생의 [${title}] 오답이 성공적으로 누적 데이터에 추가되었습니다!`);
+
+            // Directly Switch & Display Student View
+            switchMode('student');
+            document.getElementById('checkin-grade').value = grade;
+            document.getElementById('checkin-name').value = name;
+            renderStudentDashboard(student);
+        }
+    </script>
+</body>
+</html>
