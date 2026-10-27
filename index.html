@@ -551,18 +551,28 @@
                             <label class="block font-bold text-indigo-300 text-xs">
                                 <i class="fa-solid fa-layer-group mr-1"></i> 감지된 전체 모의고사 회차 목록
                             </label>
-                            <button type="button" onclick="addOcrExamRow()" class="px-2.5 py-1 bg-indigo-600/40 hover:bg-indigo-600 text-indigo-200 border border-indigo-500/40 rounded-lg text-[10px] font-bold transition">
-                                + 회차 직접 추가
-                            </button>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="autoAnalyzePatternAndFillMemo()" class="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-[10px] font-bold shadow transition flex items-center gap-1">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI 오답 패턴 처방 생성
+                                </button>
+                                <button type="button" onclick="addOcrExamRow()" class="px-2.5 py-1 bg-indigo-600/40 hover:bg-indigo-600 text-indigo-200 border border-indigo-500/40 rounded-lg text-[10px] font-bold transition">
+                                    + 회차 직접 추가
+                                </button>
+                            </div>
                         </div>
                         <div id="ocr-exams-list-container" class="space-y-2 max-h-[260px] overflow-y-auto custom-scrollbar pr-1"></div>
                     </div>
 
                     <div class="space-y-2 bg-navy-950 p-4 rounded-2xl border border-indigo-900/80">
-                        <label class="block font-bold text-amber-400 text-xs">
-                            <i class="fa-solid fa-brain mr-1"></i> 원장님 통합 약점 분석 및 처방전 (Action Plan)
-                        </label>
-                        <textarea id="ocr-memo" rows="3" class="w-full px-3 py-2 bg-navy-900 text-slate-100 border border-indigo-800 rounded-xl text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-amber-500" placeholder="학생 개별 약점 및 클리닉 방향을 입력하세요."></textarea>
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block font-bold text-amber-400 text-xs flex items-center gap-1">
+                                <i class="fa-solid fa-brain"></i> 원장님 통합 약점 분석 및 처방전 (Action Plan)
+                            </label>
+                            <button type="button" onclick="autoAnalyzePatternAndFillMemo()" class="text-[11px] text-amber-300 hover:text-amber-200 font-bold flex items-center gap-1 bg-amber-500/20 px-2 py-0.5 rounded-md border border-amber-500/30">
+                                <i class="fa-solid fa-rotate-right"></i> 패턴 다시 분석
+                            </button>
+                        </div>
+                        <textarea id="ocr-memo" rows="4" class="w-full px-3 py-2 bg-navy-900 text-slate-100 border border-indigo-800 rounded-xl text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-amber-500" placeholder="위 회차 데이터를 기반으로 AI가 감지한 종합 학습 처방전이 여기에 자동으로 작성됩니다."></textarea>
                     </div>
                 </div>
 
@@ -1111,7 +1121,7 @@ Return strictly JSON with NO markdown formatting around JSON:
             }
         }
 
-        // TEXT BATCH PARSER (이미지 인식 불량 시 텍스트 통째로 붙여넣어 해결)
+        // TEXT BATCH PARSER
         function parseTextBatch() {
             const rawText = document.getElementById('raw-batch-text').value.trim();
             if (!rawText) {
@@ -1327,7 +1337,6 @@ Return strictly JSON with NO markdown formatting around JSON:
         function parseVoiceInputAndFill(transcript) {
             openImageUploadModal();
 
-            // 인식된 음성 원본 텍스트를 수정 가능하도록 별도 수정란에 표시
             const editBox = document.getElementById('voice-recognized-edit-box');
             const editInput = document.getElementById('voice-transcript-edit-input');
             if (editBox && editInput) {
@@ -1335,6 +1344,7 @@ Return strictly JSON with NO markdown formatting around JSON:
                 editInput.value = transcript;
             }
 
+            // 1. 학생 이름 파싱
             let parsedName = "";
             const names = ["수연", "나경", "소연", "민준", "지민", "서연", "하은", "도윤", "예준", "하준", "지유", "서준", "유진", "현우", "민서"];
             for (let name of names) {
@@ -1351,12 +1361,14 @@ Return strictly JSON with NO markdown formatting around JSON:
             }
             if (parsedName) document.getElementById('ocr-student-name').value = parsedName;
 
+            // 2. 학년 파싱
             let parsedGrade = "g1";
             if (transcript.includes("고3") || transcript.includes("3학년")) parsedGrade = "g3";
             else if (transcript.includes("고2") || transcript.includes("2학년")) parsedGrade = "g2";
             else if (transcript.includes("고1") || transcript.includes("1학년")) parsedGrade = "g1";
             document.getElementById('ocr-student-grade').value = parsedGrade;
 
+            // 3. 연도 및 월 파싱
             let year = "2025년";
             let month = "3월";
             const yearMatch = transcript.match(/(20\d{2}|\d{2})년/);
@@ -1366,37 +1378,58 @@ Return strictly JSON with NO markdown formatting around JSON:
             const monthMatch = transcript.match(/(\d{1,2})월/);
             if (monthMatch) month = `${monthMatch[1]}월`;
 
+            // 4. 점수 파싱
             let score = 85;
             const scoreMatch = transcript.match(/(\d{1,3})\s*점/);
             if (scoreMatch) score = parseInt(scoreMatch[1]);
 
+            // 5. 오답 번호 정밀 파싱 (1~45번 고등 모의고사 번호 범위 정확 추출)
             let wrongNums = [];
-            const numMatches = transcript.matchAll(/(\d{1,2})\s*번?/g);
-            for (const match of numMatches) {
+            const parsedMonthNum = monthMatch ? parseInt(monthMatch[1]) : null;
+            
+            // 번호 패턴 인식 강화 (예: 31번, 34번 또는 31, 34, 37)
+            const matches = transcript.matchAll(/(\d{1,2})\s*(번|번문항)?/g);
+            for (const match of matches) {
                 const num = parseInt(match[1]);
-                if (num >= 1 && num <= 45 && num !== score && num !== parseInt(month)) {
+                // 모의고사 1~45번 범위 내 숫자 중 점수 및 월(Month)과 중복되지 않는 것 정밀 수집
+                if (num >= 1 && num <= 45 && num !== score && num !== parsedMonthNum) {
                     wrongNums.push(num);
                 }
             }
-            wrongNums = [...new Set(wrongNums)];
+            wrongNums = [...new Set(wrongNums)].sort((a, b) => a - b);
 
-            // [수정] 덮어쓰지 않고 기존 입력 항목들에 추가(Append)되도록 변경
-            const newExamData = { title: `${year} ${month} 모의고사`, score: score, wrong: wrongNums.join(', ') };
+            // 기존 회차 목록 초기화 후 파싱된 정보 100% 반영
+            const container = document.getElementById('ocr-exams-list-container');
+            if (container) container.innerHTML = '';
+
+            const newExamData = { 
+                title: `${year} ${month} 모의고사`, 
+                score: score, 
+                wrong: wrongNums.join(', ') 
+            };
             appendOcrExamRow(newExamData);
 
-            // 메모 부분도 누적 기록되도록 덧붙임
+            // 처방전 자동 반영
             const memoEl = document.getElementById('ocr-memo');
-            const newMemoLine = `• [음성 자동 추가] ${year} ${month} 모의고사 (${score}점) - 오답: ${wrongNums.length > 0 ? wrongNums.map(n => `${n}번(${getItemType(n)})`).join(', ') : '없음'}`;
+            let detailedAnalysis = "";
+            if (wrongNums.length > 0) {
+                const itemsWithDomain = wrongNums.map(n => `${n}번(${getItemType(n)})`).join(', ');
+                detailedAnalysis = `• [${year} ${month} 모의고사 오답 분석]\n - 원점수: ${score}점 | 오답 문항: ${itemsWithDomain}\n - 약점 유형 집중 클리닉 및 변형 문제 피드백 진행.`;
+            } else {
+                detailedAnalysis = `• [${year} ${month} 모의고사 오답 분석]\n - 원점수: ${score}점 | 오답 문항 없음 (만점/양호)`;
+            }
+
             if (memoEl) {
-                memoEl.value = memoEl.value ? memoEl.value + "\n" + newMemoLine : newMemoLine;
+                memoEl.value = detailedAnalysis;
             }
         }
 
-        // 음성 텍스트 수정 후 재분석 버튼 기능
         function reparseVoiceText() {
             const editInput = document.getElementById('voice-transcript-edit-input');
             if (!editInput || !editInput.value.trim()) return;
             const normalizedText = koreanNumberToDigit(editInput.value.trim());
+            
+            // 수정된 음성 텍스트를 파서로 전달하여 회차 목록 및 입력 필드에 100% 정확히 재입력
             parseVoiceInputAndFill(normalizedText);
         }
 
@@ -1413,232 +1446,139 @@ Return strictly JSON with NO markdown formatting around JSON:
         function renderOcrExamRows(exams) {
             const container = document.getElementById('ocr-exams-list-container');
             if (!container) return;
-            container.innerHTML = exams.map((ex) => `
-                <div class="ocr-exam-item bg-navy-900 p-3 rounded-xl border border-indigo-900/60 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                    <div class="sm:col-span-5">
-                        <input type="text" class="ocr-exam-title w-full px-2.5 py-1.5 bg-navy-950 text-slate-100 border border-indigo-800 rounded-lg text-xs font-bold" value="${ex.title}" placeholder="시험명">
-                    </div>
-                    <div class="sm:col-span-2">
-                        <input type="number" class="ocr-exam-score w-full px-2.5 py-1.5 bg-navy-950 text-emerald-400 border border-indigo-800 rounded-lg text-xs font-black" value="${ex.score}" placeholder="점수">
-                    </div>
-                    <div class="sm:col-span-4 font-mono">
-                        <input type="text" class="ocr-exam-wrong w-full px-2.5 py-1.5 bg-navy-950 text-rose-300 border border-indigo-800 rounded-lg text-xs font-bold" value="${ex.wrong}" placeholder="틀린번호 (예: 31, 34)">
-                    </div>
-                    <div class="sm:col-span-1 text-center">
-                        <button type="button" onclick="this.closest('.ocr-exam-item').remove()" class="text-rose-400 hover:text-rose-300 text-xs" title="삭제">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            `).join('');
+            container.innerHTML = '';
+            exams.forEach(ex => appendOcrExamRow(ex));
+            autoAnalyzePatternAndFillMemo();
         }
 
-        // 회차가 다를 때 기존 목록을 유지하고 하단에 새 회차 항목을 추가하는 함수
-        function appendOcrExamRow(ex) {
+        function appendOcrExamRow(ex = {}) {
             const container = document.getElementById('ocr-exams-list-container');
             if (!container) return;
             const div = document.createElement('div');
-            div.className = "ocr-exam-item bg-navy-900 p-3 rounded-xl border border-indigo-900/60 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center";
+            div.className = "ocr-exam-item bg-navy-900 p-3 rounded-xl border border-indigo-900/60 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center transition hover:border-indigo-700/70";
             div.innerHTML = `
-                <div class="sm:col-span-5">
-                    <input type="text" class="ocr-exam-title w-full px-2.5 py-1.5 bg-navy-950 text-slate-100 border border-indigo-800 rounded-lg text-xs font-bold" value="${ex.title || ''}" placeholder="시험명 (예: 2025년 3월 모의고사)">
+                <div class="sm:col-span-4">
+                    <input type="text" oninput="autoAnalyzePatternAndFillMemo()" class="ocr-exam-title w-full px-2.5 py-1.5 bg-navy-950 text-slate-100 border border-indigo-800 rounded-lg text-xs font-bold" value="${ex.title || ''}" placeholder="시험명 (예: 2025 3월 모의고사)">
                 </div>
                 <div class="sm:col-span-2">
-                    <input type="number" class="ocr-exam-score w-full px-2.5 py-1.5 bg-navy-950 text-emerald-400 border border-indigo-800 rounded-lg text-xs font-black" value="${ex.score || ''}" placeholder="점수">
+                    <input type="number" oninput="autoAnalyzePatternAndFillMemo()" class="ocr-exam-score w-full px-2.5 py-1.5 bg-navy-950 text-emerald-400 border border-indigo-800 rounded-lg text-xs font-black" value="${ex.score !== undefined ? ex.score : ''}" placeholder="점수">
                 </div>
                 <div class="sm:col-span-4 font-mono">
-                    <input type="text" class="ocr-exam-wrong w-full px-2.5 py-1.5 bg-navy-950 text-rose-300 border border-indigo-800 rounded-lg text-xs font-bold" value="${ex.wrong || ''}" placeholder="틀린번호 (예: 31, 34)">
+                    <input type="text" oninput="autoAnalyzePatternAndFillMemo()" class="ocr-exam-wrong w-full px-2.5 py-1.5 bg-navy-950 text-rose-300 border border-indigo-800 rounded-lg text-xs font-bold" value="${ex.wrong || ''}" placeholder="틀린번호 (예: 31, 34, 37)">
                 </div>
-                <div class="sm:col-span-1 text-center">
-                    <button type="button" onclick="this.closest('.ocr-exam-item').remove()" class="text-rose-400 hover:text-rose-300 text-xs" title="삭제">
+                <div class="sm:col-span-2 flex items-center justify-end space-x-1">
+                    <button type="button" onclick="focusAndEditRow(this)" class="px-2 py-1 bg-indigo-900/80 hover:bg-indigo-700 text-indigo-200 rounded-lg text-[10px] font-bold transition border border-indigo-700/50" title="수정/포커스">
+                        <i class="fa-solid fa-pen"></i> 수정
+                    </button>
+                    <button type="button" onclick="duplicateRow(this)" class="px-2 py-1 bg-purple-900/80 hover:bg-purple-700 text-purple-200 rounded-lg text-[10px] font-bold transition border border-purple-700/50" title="복사">
+                        <i class="fa-solid fa-copy"></i>
+                    </button>
+                    <button type="button" onclick="this.closest('.ocr-exam-item').remove(); autoAnalyzePatternAndFillMemo();" class="px-2 py-1 bg-rose-900/60 hover:bg-rose-700 text-rose-300 rounded-lg text-[10px] font-bold transition border border-rose-800/50" title="삭제">
                         <i class="fa-solid fa-trash"></i>
                     </button>
                 </div>
             `;
             container.appendChild(div);
+        }
+
+        function focusAndEditRow(btn) {
+            const row = btn.closest('.ocr-exam-item');
+            if (row) {
+                const titleInput = row.querySelector('.ocr-exam-title');
+                if (titleInput) {
+                    titleInput.focus();
+                    titleInput.select();
+                }
+            }
+        }
+
+        function duplicateRow(btn) {
+            const row = btn.closest('.ocr-exam-item');
+            if (!row) return;
+            const title = row.querySelector('.ocr-exam-title').value;
+            const score = row.querySelector('.ocr-exam-score').value;
+            const wrong = row.querySelector('.ocr-exam-wrong').value;
+            appendOcrExamRow({ title: `${title} (복사본)`, score: score, wrong: wrong });
+            autoAnalyzePatternAndFillMemo();
         }
 
         function addOcrExamRow() {
             appendOcrExamRow({ title: "", score: "", wrong: "" });
         }
 
-        function openImageUploadModal() {
-            document.getElementById('imageUploadModal').classList.remove('hidden');
-        }
-
-        function closeImageUploadModal() {
-            currentEditingStudentId = null;
-            document.getElementById('modal-title-heading').innerHTML = `<i class="fa-solid fa-camera text-purple-400"></i> 오답/패턴 다중 회차 스캔 & 입력`;
-            document.getElementById('imageUploadModal').classList.add('hidden');
-        }
-
-        function renderOcrExamRows(exams) {
-            const container = document.getElementById('ocr-exams-list-container');
-            if (!container) return;
-            container.innerHTML = exams.map((ex) => `
-                <div class="ocr-exam-item bg-navy-900 p-3 rounded-xl border border-indigo-900/60 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                    <div class="sm:col-span-5">
-                        <input type="text" class="ocr-exam-title w-full px-2.5 py-1.5 bg-navy-950 text-slate-100 border border-indigo-800 rounded-lg text-xs font-bold" value="${ex.title}" placeholder="시험명">
-                    </div>
-                    <div class="sm:col-span-2">
-                        <input type="number" class="ocr-exam-score w-full px-2.5 py-1.5 bg-navy-950 text-emerald-400 border border-indigo-800 rounded-lg text-xs font-black" value="${ex.score}" placeholder="점수">
-                    </div>
-                    <div class="sm:col-span-4">
-                        <input type="text" class="ocr-exam-wrong w-full px-2.5 py-1.5 bg-navy-950 text-rose-300 border border-indigo-800 rounded-lg text-xs font-bold" value="${ex.wrong}" placeholder="틀린번호 (예: 31, 34)">
-                    </div>
-                    <div class="sm:col-span-1 text-center">
-                        <button type="button" onclick="this.closest('.ocr-exam-item').remove()" class="text-rose-400 hover:text-rose-300 text-xs">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function addOcrExamRow() {
-            const container = document.getElementById('ocr-exams-list-container');
-            const div = document.createElement('div');
-            div.className = "ocr-exam-item bg-navy-900 p-3 rounded-xl border border-indigo-900/60 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center";
-            div.innerHTML = `
-                <div class="sm:col-span-5">
-                    <input type="text" class="ocr-exam-title w-full px-2.5 py-1.5 bg-navy-950 text-slate-100 border border-indigo-800 rounded-lg text-xs font-bold" placeholder="시험명 (예: 2025년 3월 모의고사)">
-                </div>
-                <div class="sm:col-span-2">
-                    <input type="number" class="ocr-exam-score w-full px-2.5 py-1.5 bg-navy-950 text-emerald-400 border border-indigo-800 rounded-lg text-xs font-black" placeholder="점수">
-                </div>
-                <div class="sm:col-span-4">
-                    <input type="text" class="ocr-exam-wrong w-full px-2.5 py-1.5 bg-navy-950 text-rose-300 border border-indigo-800 rounded-lg text-xs font-bold" placeholder="틀린번호 (예: 31, 34)">
-                </div>
-                <div class="sm:col-span-1 text-center">
-                    <button type="button" onclick="this.closest('.ocr-exam-item').remove()" class="text-rose-400 hover:text-rose-300 text-xs">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
-                </div>
-            `;
-            container.appendChild(div);
-        }
-
-        function saveOcrResult() {
-            const name = document.getElementById('ocr-student-name').value.trim();
-            if (!name) {
-                alert("학생 이름을 입력해 주세요.");
-                return;
-            }
-            const grade = document.getElementById('ocr-student-grade').value;
-            const gradeLabel = grade === 'g1' ? '고1' : grade === 'g2' ? '고2' : '고3';
-            const memo = document.getElementById('ocr-memo').value;
-
+        // AI AUTOMATIC PATTERN ANALYSIS & STRATEGIC ACTION PLAN GENERATOR
+        function autoAnalyzePatternAndFillMemo() {
             const examItems = document.querySelectorAll('.ocr-exam-item');
-            const newExams = [];
+            const parsedExams = [];
 
             examItems.forEach(item => {
-                const title = item.querySelector('.ocr-exam-title').value.trim();
-                const score = parseInt(item.querySelector('.ocr-exam-score').value) || 0;
-                const wrongRaw = item.querySelector('.ocr-exam-wrong').value;
+                const title = item.querySelector('.ocr-exam-title')?.value.trim();
+                const score = parseInt(item.querySelector('.ocr-exam-score')?.value) || 0;
+                const wrongRaw = item.querySelector('.ocr-exam-wrong')?.value || "";
                 const wrongNumbers = wrongRaw.split(/[,;\s]+/).map(n => parseInt(n.replace(/[^0-9]/g, ''))).filter(n => !isNaN(n));
 
-                if (title) {
-                    newExams.push({
-                        id: Date.now() + Math.random(),
-                        title: title,
-                        score: score,
-                        wrongNumbers: wrongNumbers
-                    });
+                if (title || wrongNumbers.length > 0) {
+                    parsedExams.push({ title, score, wrongNumbers });
                 }
             });
 
-            if (newExams.length === 0) {
-                alert("최소 1개 이상의 시험 회차 기록이 필요합니다.");
-                return;
+            if (parsedExams.length === 0) return;
+
+            const domainCounts = {};
+            const itemCounts = {};
+            let totalExams = parsedExams.length;
+            let totalWrong = 0;
+
+            parsedExams.forEach(ex => {
+                ex.wrongNumbers.forEach(num => {
+                    const domain = getItemType(num);
+                    domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+                    itemCounts[num] = (itemCounts[num] || 0) + 1;
+                    totalWrong++;
+                });
+            });
+
+            // 가장 자주 틀린 번호 상위 3개
+            const topWrongItems = Object.entries(itemCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([num, count]) => `${num}번(${getItemType(num)}, ${count}회)`);
+
+            // 오답 비중이 높았던 영역
+            const sortedDomains = Object.entries(domainCounts).sort((a, b) => b[1] - a[1]);
+
+            let analysisText = `• [AI 누적 오답 패턴 정밀 분석]\n`;
+            analysisText += ` - 총 ${totalExams}개 회차 분석 결과, 약 점 감점 오답은 총 ${totalWrong}건 발생했습니다.\n`;
+            if (topWrongItems.length > 0) {
+                analysisText += ` - 반복 감점 핵심 킬러 문항: ${topWrongItems.join(', ')}\n`;
             }
 
-            let student = null;
-            if (currentEditingStudentId) {
-                student = window.studentData.find(s => s.id === currentEditingStudentId);
-            }
-            
-            if (!student) {
-                student = window.studentData.find(s => s.name === name && s.grade === grade);
-            }
+            analysisText += `\n• [유형별 1:1 맞춤 클리닉 처방전 (Action Plan)]\n`;
 
-            if (!student) {
-                student = {
-                    id: Date.now(),
-                    name: name,
-                    grade: grade,
-                    gradeLabel: gradeLabel,
-                    memo: memo,
-                    exams: newExams
-                };
-                window.studentData.push(student);
-            } else {
-                student.name = name;
-                student.grade = grade;
-                student.gradeLabel = gradeLabel;
-                student.memo = memo;
-                student.exams = newExams;
-            }
-
-            saveDataToStorage(true);
-            closeImageUploadModal();
-            alert(`[${name}] 학생의 다중 회차 오답 기록이 저장/수정되었습니다!`);
-
-            switchMode('teacher');
-            renderTeacherDashboard();
-        }
-
-        function exportDataJSON() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.studentData, null, 2));
-            const downloadAnchor = document.createElement('a');
-            downloadAnchor.setAttribute("href", dataStr);
-            downloadAnchor.setAttribute("download", `Seattle_English_Students_Backup_${new Date().toISOString().slice(0,10)}.json`);
-            document.body.appendChild(downloadAnchor);
-            downloadAnchor.click();
-            downloadAnchor.remove();
-        }
-
-        function importDataJSON(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                try {
-                    const imported = JSON.parse(evt.target.result);
-                    if (Array.isArray(imported)) {
-                        window.studentData = imported;
-                        saveDataToStorage(true);
-                        renderTeacherDashboard();
-                        alert("학생 데이터 복원이 완료되었습니다!");
-                    }
-                } catch (err) {
-                    alert("올바른 JSON 데이터 파일이 아닙니다.");
+            if (sortedDomains.length > 0) {
+                const primaryWeakness = sortedDomains[0][0];
+                if (primaryWeakness === '빈칸 추론') {
+                    analysisText += ` - [최우선 보완] 빈칸 추론(31~34번) 문항 오답률이 가장 높습니다. 지문의 메인 아이디어 흐름과 선택지 패러프레이징(유의어 변환) 단어 분석 노트를 집중 작성하도록 지도합니다.\n`;
+                } else if (primaryWeakness === '순서/삽입') {
+                    analysisText += ` - [최우선 보완] 순서 및 문장 삽입(36~39번) 유형에서 연속 감점이 발생 중입니다. 지시어(This, Such) 및 연결어(However, For example)의 논리적 단서 연결 훈련을 집중 실시합니다.\n`;
+                } else if (primaryWeakness === '어법' || primaryWeakness === '어휘') {
+                    analysisText += ` - [최우선 보완] 29~30번 어법/어휘 문항 기초 실수가 빈번합니다. 고등 필수 어법 50제 정밀 복습 및 단어 문맥적 의미 파악 클리닉을 배정합니다.\n`;
+                } else if (primaryWeakness === '주제/요지') {
+                    analysisText += ` - [최우선 보완] 21~24번 대의파악 문항 감점이 있습니다. 첫 3문장 핵심 키워드 잡기 연습과 지문 요약 훈련이 필요합니다.\n`;
+                } else {
+                    analysisText += ` - [최우선 보완] ${primaryWeakness} 유형의 취약점이 감지되어 해당 유형 집중 기출 100제 클리닉을 배정합니다.\n`;
                 }
-            };
-            reader.readAsText(file);
-        }
 
-        function openSettingsModal() {
-            document.getElementById('settingsModal').classList.remove('hidden');
-        }
+                if (sortedDomains.length > 1) {
+                    analysisText += ` - [서브 보완] 추가로 오답 비중이 높은 ${sortedDomains[1][0]} 유형 변형 문제집 풀이 병행 조치 예정.`;
+                }
+            } else {
+                analysisText += ` - 오답 항목이 적고 전반적으로 양호한 성취도를 보이고 있습니다. 1등급 안착을 위해 고난도 3점 빈칸/순서 고도화 풀이를 권장합니다.`;
+            }
 
-        function closeSettingsModal() {
-            document.getElementById('settingsModal').classList.add('hidden');
-        }
-
-        function saveSettings() {
-            geminiApiKey = document.getElementById('setting-gemini-key').value.trim();
-            localStorage.setItem(SETTINGS_KEY, JSON.stringify({ geminiApiKey: geminiApiKey }));
-            closeSettingsModal();
-            alert("설정이 저장되었습니다.");
-        }
-
-        function resetAllStudentData() {
-            if (confirm("모든 학생 오답 데이터를 초기화하시겠습니까?")) {
-                window.studentData = [...initialDefaultStudents];
-                saveDataToStorage(true);
-                renderTeacherDashboard();
-                closeSettingsModal();
-                alert("초기 데모 데이터로 초기화되었습니다.");
+            const memoTextarea = document.getElementById('ocr-memo');
+            if (memoTextarea) {
+                memoTextarea.value = analysisText;
             }
         }
     </script>
