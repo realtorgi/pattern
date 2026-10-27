@@ -75,7 +75,6 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase Configuration setup with Environment Variables or Fallback
         const defaultAppId = typeof __app_id !== 'undefined' ? __app_id : 'seattle-english-app';
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
@@ -92,14 +91,12 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // Global Firebase Handler Reference for standard JS access
         window.FB_SERVICE = {
             db: db,
             auth: auth,
             appId: defaultAppId,
             currentUser: null,
             
-            // Methods with Permission Fallback Handling
             async saveStudentToCloud(studentObj) {
                 try {
                     const docId = String(studentObj.id);
@@ -108,10 +105,13 @@
                     console.log("Cloud Saved Successfully:", docId);
                 } catch (e) {
                     console.warn("Cloud Save Permission Warning (Saved to Local Storage instead):", e.message);
-                    document.getElementById('cloud-status-badge').innerHTML = `
-                        <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
-                        <span class="text-amber-300">파이어베이스 규칙 설정 필요 (로컬 자동 저장중)</span>
-                    `;
+                    const badge = document.getElementById('cloud-status-badge');
+                    if (badge) {
+                        badge.innerHTML = `
+                            <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
+                            <span class="text-amber-300">파이어베이스 규칙 설정 필요 (로컬 자동 저장중)</span>
+                        `;
+                    }
                 }
             },
 
@@ -126,7 +126,6 @@
             }
         };
 
-        // Firebase Auth Initialization
         async function initAuth() {
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -142,17 +141,19 @@
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 window.FB_SERVICE.currentUser = user;
-                document.getElementById('cloud-status-badge').innerHTML = `
-                    <i class="fa-solid fa-cloud-check text-emerald-400"></i>
-                    <span class="text-emerald-300">Google Cloud DB 실시간 연결됨</span>
-                `;
+                const badge = document.getElementById('cloud-status-badge');
+                if (badge) {
+                    badge.innerHTML = `
+                        <i class="fa-solid fa-cloud-check text-emerald-400"></i>
+                        <span class="text-emerald-300">Google Cloud DB 실시간 연결됨</span>
+                    `;
+                }
                 subscribeToStudentCollection();
             } else {
                 initAuth();
             }
         });
 
-        // Real-time Firestore Collection Listener with Graceful Error Catching
         function subscribeToStudentCollection() {
             const colRef = collection(db, 'artifacts', defaultAppId, 'public', 'data', 'students');
             
@@ -164,9 +165,8 @@
 
                 if (cloudData.length > 0) {
                     window.studentData = cloudData;
-                    window.saveDataToStorage(false); // Update local cache without overwrite
+                    window.saveDataToStorage(false);
                 } else if (window.studentData && window.studentData.length > 0) {
-                    // Seed initial data to cloud if empty
                     window.studentData.forEach(s => window.FB_SERVICE.saveStudentToCloud(s));
                 }
 
@@ -175,10 +175,13 @@
                 }
             }, (error) => {
                 console.warn("Firestore Subscribe Permission Error:", error.message);
-                document.getElementById('cloud-status-badge').innerHTML = `
-                    <i class="fa-solid fa-shield-halved text-amber-400"></i>
-                    <span class="text-amber-300">Firebase 콘솔 규칙 설정 필요 (로컬 모드 작동중)</span>
-                `;
+                const badge = document.getElementById('cloud-status-badge');
+                if (badge) {
+                    badge.innerHTML = `
+                        <i class="fa-solid fa-shield-halved text-amber-400"></i>
+                        <span class="text-amber-300">Firebase 콘솔 규칙 설정 필요 (로컬 모드 작동중)</span>
+                    `;
+                }
             });
         }
     </script>
@@ -202,9 +205,8 @@
                 </div>
             </div>
 
-            <!-- Mode Switcher, Contact & Theme Toggle -->
+            <!-- Mode Switcher & Controls -->
             <div class="flex items-center space-x-3">
-                <!-- Mode Toggle Tab -->
                 <div class="bg-navy-950 p-1 rounded-2xl border border-indigo-900/80 flex items-center space-x-1">
                     <button onclick="switchMode('student')" id="btn-mode-student" class="px-3 py-1.5 rounded-xl text-xs font-bold transition bg-indigo-600 text-white shadow-md flex items-center gap-1.5">
                         <i class="fa-solid fa-user-graduate"></i> 학생 모드
@@ -226,7 +228,7 @@
         </div>
     </header>
 
-    <!-- Main Dynamic Content Container -->
+    <!-- Main Content Container -->
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
         <!-- VIEW 1: STUDENT VIEW -->
@@ -267,9 +269,9 @@
                 </form>
             </div>
 
-            <!-- Student Dashboard View -->
+            <!-- Student Dashboard View (Initially Hidden) -->
             <div id="student-dashboard" class="hidden space-y-6">
-                <!-- Welcome Banner & Student Identity -->
+                <!-- Welcome Banner -->
                 <div class="bg-gradient-to-r from-navy-900 via-indigo-950 to-navy-900 rounded-3xl border border-indigo-800/60 p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl">
                     <div class="space-y-2">
                         <div class="flex items-center space-x-3">
@@ -293,23 +295,18 @@
                     </div>
                 </div>
 
-                <!-- Infographics & Frequency Visual Chart -->
+                <!-- Infographics -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Top 5 Most Frequently Missed Numbers -->
                     <div class="lg:col-span-2 bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4">
                         <div class="flex items-center justify-between">
                             <h3 class="font-bold text-sm text-white flex items-center gap-2">
-                                <i class="fa-solid fa-fire text-rose-500"></i> 수년간 치른 시험에서 가장 자주 틀린 번호 (Top 5)
+                                <i class="fa-solid fa-fire text-rose-500"></i> 가장 자주 틀린 번호 Top 5
                             </h3>
                             <span class="text-xs text-indigo-300">반복 감점 킬러 번호</span>
                         </div>
-
-                        <div id="student-accumulated-wrong-items" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                            <!-- Populated by JS -->
-                        </div>
+                        <div id="student-accumulated-wrong-items" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2"></div>
                     </div>
 
-                    <!-- Domain Distribution Chart / Summary -->
                     <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4 flex flex-col justify-between">
                         <div>
                             <h3 class="font-bold text-sm text-white flex items-center gap-2">
@@ -317,24 +314,20 @@
                             </h3>
                             <p class="text-[11px] text-slate-400 mt-1">지속적으로 점수를 갉아먹는 핵심 고난도 유형</p>
                         </div>
-                        <div id="domain-summary-list" class="space-y-2.5 my-2">
-                            <!-- Populated by JS -->
-                        </div>
+                        <div id="domain-summary-list" class="space-y-2.5 my-2"></div>
                         <div class="p-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-[11px] text-rose-300 font-medium">
                             <i class="fa-solid fa-triangle-exclamation mr-1"></i> 상위 등급 진입을 위해 31~34번(빈칸) 및 36~39번(순서/삽입) 집중 보완이 시급합니다.
                         </div>
                     </div>
                 </div>
 
-                <!-- Strategic Action Plan & Teacher Memo -->
+                <!-- Strategic Action Plan -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-3">
                         <h3 class="font-bold text-sm text-amber-400 flex items-center gap-2">
-                            <i class="fa-solid fa-compass"></i> 원장 지남 선생님의 개별 약점 분석 및 처방전 (Action Plan)
+                            <i class="fa-solid fa-compass"></i> 원장 지남 선생님의 약점 분석 및 처방전 (Action Plan)
                         </h3>
-                        <div id="student-display-memo" class="text-xs text-slate-200 leading-relaxed bg-navy-950 p-4 rounded-2xl border border-indigo-950 min-h-[120px] whitespace-pre-line">
-                            -
-                        </div>
+                        <div id="student-display-memo" class="text-xs text-slate-200 leading-relaxed bg-navy-950 p-4 rounded-2xl border border-indigo-950 min-h-[120px] whitespace-pre-line">-</div>
                     </div>
 
                     <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-3 flex flex-col justify-between">
@@ -357,71 +350,62 @@
                     </div>
                 </div>
 
-                <!-- History of All Taken Exams -->
+                <!-- Exam History -->
                 <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4">
                     <h3 class="font-bold text-sm text-white flex items-center gap-2">
-                        <i class="fa-solid fa-list-check text-indigo-400"></i> 응시한 모든 모의고사 세부 원점수 및 틀린 번호 기록
+                        <i class="fa-solid fa-list-check text-indigo-400"></i> 응시한 모든 모의고사 세부 기록
                     </h3>
-
-                    <div id="student-exams-history-list" class="space-y-3">
-                        <!-- Populated by JS -->
-                    </div>
+                    <div id="student-exams-history-list" class="space-y-3"></div>
                 </div>
             </div>
         </div>
 
-        <!-- VIEW 2: TEACHER / ADMIN MANAGEMENT VIEW -->
+        <!-- VIEW 2: TEACHER MANAGEMENT VIEW -->
         <div id="view-teacher-portal" class="hidden space-y-6">
-            <!-- Teacher Header Info Banner -->
+            <!-- Header Banner -->
             <div class="bg-gradient-to-r from-purple-950 via-indigo-950 to-navy-900 rounded-3xl border border-purple-500/40 p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-5">
                 <div class="space-y-1 text-center md:text-left">
                     <div class="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-full text-xs font-bold">
                         <i class="fa-solid fa-user-shield"></i> 원장 지남 선생님 전용 데이터 통합 관리자
                     </div>
                     <h3 class="text-xl font-black text-white">
-                        1~3년 누적 오답/패턴 분석 스캔 & 음성 간편 등록
+                        오답/패턴 데이터 사진 스캔 & 스마트 음성 즉시 등록
                     </h3>
                     <p class="text-xs text-purple-200/80">
-                        사진 스캔(Gemini AI) 또는 **음성 마이크 말하기**로 오답 기록을 쉽게 등록하세요. 입력된 수강생 정보는 Google Cloud DB에 영구 보존됩니다.
+                        사진 스캔(Gemini AI Vision) 및 정밀 한국어 음성 마이크로 오답 기록을 등록하세요.
                     </p>
                 </div>
-                <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                    <!-- Voice Input Button -->
+                <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-center">
                     <button onclick="startVoiceRegistration()" id="voice-main-btn" class="px-4 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 transition active:scale-95 whitespace-nowrap">
                         <i class="fa-solid fa-microphone text-sm"></i>
                         <span>음성 마이크 입력</span>
                     </button>
-                    <!-- Exam Photo Scan Button -->
                     <button onclick="openImageUploadModal()" class="px-5 py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white font-bold text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 transition active:scale-95 whitespace-nowrap">
                         <i class="fa-solid fa-camera text-sm"></i>
                         <span>패턴 사진 스캔</span>
                     </button>
-                    <!-- Settings Button -->
                     <button onclick="openSettingsModal()" class="p-3 bg-navy-800 hover:bg-navy-700 border border-indigo-700/60 text-slate-200 rounded-2xl text-xs font-bold transition" title="API 설정 및 백업">
                         <i class="fa-solid fa-gear text-sm"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- Voice Live Status Bar (Visible when recording) -->
+            <!-- Voice Live Status Bar -->
             <div id="voice-live-status" class="hidden bg-rose-950/80 border border-rose-500/50 rounded-2xl p-4 flex items-center justify-between text-xs text-rose-200 shadow-xl backdrop-blur-md">
                 <div class="flex items-center space-x-3 w-full mr-3">
                     <span class="w-3 h-3 rounded-full bg-rose-500 recording-active shrink-0"></span>
                     <div class="flex-1 min-w-0">
                         <p class="font-bold text-white flex items-center gap-1.5">
-                            연속 음성 인식 중... (시험 하나를 말씀하시면 자동으로 다음 회차 칸이 생성됩니다!)
+                            실시간 고정밀 음성 인식 중... (말씀하신 뒤 완료 버튼을 누르세요)
                         </p>
                         <p id="voice-transcript-preview" class="text-xs text-amber-300 font-medium truncate mt-0.5 bg-black/40 px-2 py-1 rounded-lg border border-amber-500/30">"말씀하시는 내용이 여기에 표시됩니다..."</p>
                     </div>
-                </div>
-                <button onclick="stopVoiceRegistration(true)" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs shrink-0 shadow">말하기 완료 및 저장</button>
-            </div>
                 </div>
                 <button onclick="stopVoiceRegistration(true)" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs shrink-0 shadow">말하기 완료</button>
             </div>
 
             <!-- Cloud Status Bar & Data Controls -->
-            <div class="flex flex-wrap items-center justify-between bg-navy-900/80 p-3.5 rounded-2xl border border-indigo-900/60 text-xs">
+            <div class="flex flex-wrap items-center justify-between bg-navy-900/80 p-3.5 rounded-2xl border border-indigo-900/60 text-xs gap-3">
                 <div class="flex items-center space-x-2 font-medium" id="cloud-status-badge">
                     <i class="fa-solid fa-spinner fa-spin text-indigo-400"></i>
                     <span class="text-indigo-300">Google Firebase DB 연결 확인 중...</span>
@@ -437,14 +421,13 @@
                 </div>
             </div>
 
-            <!-- Student List & Management Table -->
+            <!-- Student List Table -->
             <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <h3 class="font-bold text-sm text-white flex items-center gap-2">
                         <i class="fa-solid fa-users text-purple-400"></i> 수강생 누적 오답 데이터 관리
                     </h3>
                     
-                    <!-- 학년 필터 탭 -->
                     <div class="flex items-center space-x-1 bg-navy-950 p-1 rounded-2xl border border-indigo-900/80">
                         <button onclick="filterTeacherGrade('all')" id="btn-grade-all" class="px-3 py-1.5 rounded-xl text-xs font-bold transition bg-purple-600 text-white shadow">전체</button>
                         <button onclick="filterTeacherGrade('g1')" id="btn-grade-g1" class="px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white">고1</button>
@@ -455,10 +438,9 @@
 
                 <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
                     <span id="teacher-student-count-badge">등록된 수강생: 0명</span>
-                    <span class="text-indigo-300 font-medium">* 음성 마이크 또는 사진 스캔으로 나경, 소연 학생 등의 데이터를 손쉽게 관리하세요.</span>
+                    <span class="text-indigo-300 font-medium">* 음성 마이크 또는 사진 스캔으로 손쉽게 수강생 오답 노트를 입력 관리하세요.</span>
                 </div>
 
-                <!-- Table of Students -->
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs text-slate-300 border-collapse">
                         <thead>
@@ -471,9 +453,7 @@
                                 <th class="p-3 font-bold text-center">관리 / 리포트 보기</th>
                             </tr>
                         </thead>
-                        <tbody id="teacher-student-table-body" class="divide-y divide-indigo-950">
-                            <!-- Populated by JS -->
-                        </tbody>
+                        <tbody id="teacher-student-table-body" class="divide-y divide-indigo-950"></tbody>
                     </table>
                 </div>
             </div>
@@ -481,19 +461,18 @@
 
     </main>
 
-    <!-- Modal: Image/Photo OCR & Pattern Analysis Extraction & Voice Registration -->
+    <!-- Modal: Image/Photo OCR & Voice Modal -->
     <div id="imageUploadModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
         <div class="bg-navy-900 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-purple-500/50 max-h-[90vh] flex flex-col">
             <div class="bg-navy-950 px-6 py-4 flex justify-between items-center border-b border-purple-900/50 shrink-0">
                 <h3 class="font-bold text-sm text-white flex items-center gap-2">
-                    <i class="fa-solid fa-camera text-purple-400"></i> 오답/패턴 노트 스캔 & 음성 자동 기입 모달
+                    <i class="fa-solid fa-camera text-purple-400"></i> 오답/패턴 데이터 스캔 & 입력 모달
                 </h3>
                 <button onclick="closeImageUploadModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
 
             <div class="p-6 space-y-5 text-xs overflow-y-auto custom-scrollbar">
                 
-                <!-- Voice Input Quick Banner in Modal -->
                 <div class="bg-gradient-to-r from-rose-950/60 to-purple-950/60 border border-rose-500/30 p-4 rounded-2xl flex items-center justify-between">
                     <div>
                         <p class="font-bold text-rose-300 text-xs flex items-center gap-1.5">
@@ -506,29 +485,26 @@
                     </button>
                 </div>
 
-                <!-- Dropzone for Image -->
                 <div onclick="document.getElementById('photoFileInput').click()" class="border-2 border-dashed border-purple-500/40 hover:border-purple-400 bg-purple-950/20 hover:bg-purple-950/40 p-5 rounded-2xl text-center cursor-pointer transition space-y-2">
                     <input type="file" id="photoFileInput" accept="image/*" capture="environment" onchange="processPhotoUpload(event)" class="hidden">
                     <div class="w-10 h-10 rounded-2xl bg-purple-600/20 text-purple-300 border border-purple-500/30 mx-auto flex items-center justify-center text-lg">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
                     </div>
-                    <p class="font-bold text-white text-xs">패턴 분석 노트 / 모의고사 성적표 사진 첨부 (AI 스캔)</p>
-                    <p class="text-slate-400 text-[10px]">사진 한 장에서 학생 이름, 시험명, 점수, 틀린 번호를 Gemini AI가 정밀 분석합니다.</p>
+                    <p class="font-bold text-white text-xs">패턴 분석 노트 / 성적표 사진 첨부 (AI 스캔)</p>
+                    <p class="text-slate-400 text-[10px]">사진 한 장에서 학생 이름, 시험명, 점수, 틀린 번호를 정밀 분석합니다.</p>
                 </div>
 
-                <!-- Preview & Extracted OCR Result Area -->
                 <div id="ocr-preview-area" class="space-y-4 border-t border-indigo-900/50 pt-4">
                     <div id="image-preview-container" class="hidden flex items-center space-x-3 bg-navy-950 p-3 rounded-2xl border border-indigo-900/60">
                         <img id="image-preview" src="#" alt="미리보기" class="w-14 h-14 object-cover rounded-xl border border-indigo-800">
                         <div class="flex-1 min-w-0">
                             <p class="text-emerald-400 font-bold flex items-center gap-1 text-xs" id="ocr-status-text">
-                                <i class="fa-solid fa-wand-magic-sparkles"></i> AI 정밀 이미지 분석 완료
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> AI 이미지 분석 준비 완료
                             </p>
                             <p class="text-slate-300 text-[11px] truncate mt-0.5" id="image-filename">cumulative_pattern_analysis.jpg</p>
                         </div>
                     </div>
 
-                    <!-- Target Student Info -->
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block font-bold text-slate-300 mb-1">학생 이름 *</label>
@@ -544,24 +520,18 @@
                         </div>
                     </div>
 
-                    <!-- Extracted Multiple Exams Section -->
                     <div class="space-y-3 bg-navy-950 p-4 rounded-2xl border border-indigo-900/80">
                         <div class="flex items-center justify-between">
                             <label class="block font-bold text-indigo-300 text-xs">
-                                <i class="fa-solid fa-layer-group mr-1"></i> 인식 및 등록할 모의고사 회차 기록 목록
+                                <i class="fa-solid fa-layer-group mr-1"></i> 등록할 모의고사 회차 기록 목록
                             </label>
                             <button type="button" onclick="addOcrExamRow()" class="px-2.5 py-1 bg-indigo-600/40 hover:bg-indigo-600 text-indigo-200 border border-indigo-500/40 rounded-lg text-[10px] font-bold transition">
                                 + 회차 직접 추가
                             </button>
                         </div>
-
-                        <!-- Dynamic Exam Rows Container -->
-                        <div id="ocr-exams-list-container" class="space-y-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
-                            <!-- Populated dynamically -->
-                        </div>
+                        <div id="ocr-exams-list-container" class="space-y-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1"></div>
                     </div>
 
-                    <!-- Overall Pattern & Action Plan -->
                     <div class="space-y-2 bg-navy-950 p-4 rounded-2xl border border-indigo-900/80">
                         <label class="block font-bold text-amber-400 text-xs">
                             <i class="fa-solid fa-brain mr-1"></i> 원장님 통합 약점 분석 및 처방전 (Action Plan)
@@ -573,7 +543,7 @@
                 <div class="flex justify-end space-x-2 pt-2">
                     <button type="button" onclick="closeImageUploadModal()" class="px-4 py-2 rounded-xl text-slate-400 hover:bg-navy-950">취소</button>
                     <button type="button" id="ocr-save-btn" onclick="saveOcrResult()" class="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold shadow-lg flex items-center gap-2">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> Google Cloud에 저장하기
+                        <i class="fa-solid fa-cloud-arrow-up"></i> 저장하기
                     </button>
                 </div>
             </div>
@@ -594,7 +564,7 @@
                 <div>
                     <label class="block font-bold text-slate-300 mb-1">Gemini API Key (선택)</label>
                     <input type="password" id="setting-gemini-key" placeholder="AI 비전 사진 스캔용 API Key" class="w-full px-3 py-2 bg-navy-950 text-slate-100 border border-indigo-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500">
-                    <p class="text-[10px] text-slate-400 mt-1">※ 구글 데이터베이스(Firebase)에 실시간 자동 동기화됩니다.</p>
+                    <p class="text-[10px] text-slate-400 mt-1">※ 입력된 수강생 정보는 Google Cloud DB에 자동 동기화됩니다.</p>
                 </div>
 
                 <div class="pt-2 border-t border-indigo-900/50 flex justify-between items-center">
@@ -613,17 +583,16 @@
         </div>
     </div>
 
-    <!-- Application Script Logic -->
+    <!-- Application Main Logic -->
     <script>
-        // GLOBAL STATE & LOCALSTORAGE KEY
-        const STORAGE_KEY = "seattle_english_student_data_v2";
-        const SETTINGS_KEY = "seattle_english_settings_v2";
+        const STORAGE_KEY = "seattle_english_student_data_v3";
+        const SETTINGS_KEY = "seattle_english_settings_v3";
 
-        window.currentSystemMode = 'student'; // 'student' or 'teacher'
-        let currentTeacherGradeFilter = 'all'; // 'all', 'g1', 'g2', 'g3'
+        window.currentSystemMode = 'student';
+        let currentTeacherGradeFilter = 'all';
         let geminiApiKey = "";
 
-        // Default Initial Demo Data (고1 나경, 수연, 소연 포함)
+        // Default Initial Demo Data (수연, 나경, 소연)
         const initialDefaultStudents = [
             {
                 id: 1710000001,
@@ -662,7 +631,6 @@
 
         window.studentData = [];
 
-        // LOAD & SAVE LOCALSTORAGE & FIREBASE SYNC
         function loadDataFromStorage() {
             try {
                 const saved = localStorage.getItem(STORAGE_KEY);
@@ -682,7 +650,8 @@
                 if (settings) {
                     const parsed = JSON.parse(settings);
                     geminiApiKey = parsed.geminiApiKey || "";
-                    document.getElementById('setting-gemini-key').value = geminiApiKey;
+                    const keyInput = document.getElementById('setting-gemini-key');
+                    if (keyInput) keyInput.value = geminiApiKey;
                 }
             } catch (e) {}
         }
@@ -690,8 +659,6 @@
         window.saveDataToStorage = function(syncCloud = true) {
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(window.studentData));
-                
-                // If cloud service ready and flag true, sync each student
                 if (syncCloud && window.FB_SERVICE && window.FB_SERVICE.saveStudentToCloud) {
                     window.studentData.forEach(student => {
                         window.FB_SERVICE.saveStudentToCloud(student);
@@ -716,9 +683,11 @@
 
         function toggleDarkMode() {
             const isDark = document.documentElement.classList.toggle('dark');
-            document.getElementById('theme-icon').className = isDark ? 'fa-solid fa-sun text-sm' : 'fa-solid fa-moon text-sm';
+            const icon = document.getElementById('theme-icon');
+            if (icon) icon.className = isDark ? 'fa-solid fa-sun text-sm' : 'fa-solid fa-moon text-sm';
         }
 
+        // MODE SWITCHER LOGIC
         function switchMode(mode) {
             window.currentSystemMode = mode;
             const btnStudent = document.getElementById('btn-mode-student');
@@ -812,7 +781,6 @@
 
             document.getElementById('student-display-memo').innerText = student.memo || "등록된 선생님 종합 의견이 없습니다.";
 
-            // Accumulate Item Frequencies
             const itemCounts = {};
             const domainCounts = {};
 
@@ -824,7 +792,6 @@
                 });
             });
 
-            // Render Top 5 Most Missed Numbers
             const sortedWrong = Object.entries(itemCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
             const heatmapContainer = document.getElementById('student-accumulated-wrong-items');
 
@@ -852,7 +819,6 @@
                 heatmapContainer.innerHTML = `<p class="text-xs text-slate-400 col-span-2">오답 기록이 없습니다.</p>`;
             }
 
-            // Render Domain Breakdown
             const domainContainer = document.getElementById('domain-summary-list');
             const totalWrongCount = Object.values(itemCounts).reduce((a, b) => a + b, 0);
 
@@ -877,7 +843,6 @@
                 domainContainer.innerHTML = `<p class="text-xs text-slate-400">오답 데이터가 없습니다.</p>`;
             }
 
-            // Exam History List
             const historyContainer = document.getElementById('student-exams-history-list');
             if ((student.exams || []).length > 0) {
                 historyContainer.innerHTML = student.exams.map(exam => `
@@ -909,14 +874,17 @@
                 filtered = window.studentData.filter(s => s.grade === currentTeacherGradeFilter);
             }
 
-            document.getElementById('teacher-student-count-badge').innerText = `수강생 목록 (${filtered.length}명 / 전체 ${window.studentData.length}명)`;
+            const badge = document.getElementById('teacher-student-count-badge');
+            if (badge) badge.innerText = `수강생 목록 (${filtered.length}명 / 전체 ${window.studentData.length}명)`;
+            
             const tbody = document.getElementById('teacher-student-table-body');
+            if (!tbody) return;
             
             if (filtered.length === 0) {
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="6" class="p-8 text-center text-slate-400 text-xs">
-                            등록된 수강생 데이터가 없습니다.<br>상단의 <strong>[음성 마이크]</strong> 또는 <strong>[패턴 사진 스캔]</strong> 버튼을 통해 수연, 나경, 소연 학생 데이터를 추가해보세요.
+                            등록된 수강생 데이터가 없습니다.<br>상단의 <strong>[음성 마이크]</strong> 또는 <strong>[패턴 사진 스캔]</strong> 버튼을 통해 수강생 데이터를 추가해보세요.
                         </td>
                     </tr>
                 `;
@@ -978,12 +946,30 @@
             alert("1:1 맞춤 약점 클리닉 상담 예약이 접수되었습니다!\n원장 지남 선생님께서 직접 연락드립니다.\n(Seattle English Academy : 010-8921-7812)");
         }
 
-        // ==========================================
-        // VOICE INPUT LOGIC (MULTI-EXAM CONTINUOUS)
-        // ==========================================
+        // HIGH PRECISION KOREAN VOICE INPUT ENHANCED LOGIC
         let recognition = null;
         let isRecording = false;
         let accumulatedTranscript = "";
+
+        function koreanNumberToDigit(str) {
+            if (!str) return str;
+            let res = str;
+            const dict = {
+                '일': '1', '이': '2', '삼': '3', '사': '4', '오': '5',
+                '육': '6', '칠': '7', '팔': '8', '구': '9', '십': '10',
+                '십일': '11', '십이': '12', '십삼': '13', '십사': '14', '십오': '15',
+                '십육': '16', '십칠': '17', '십팔': '18', '십구': '19', '이십': '20',
+                '이십일': '21', '이십이': '22', '이십삼': '23', '이십사': '24', '이십오': '25',
+                '이십육': '26', '이십칠': '27', '이십팔': '28', '이십구': '29', '삼십': '30',
+                '삼십일': '31', '삼십이': '32', '삼십삼': '33', '삼십사': '34', '삼십오': '35',
+                '삼십육': '36', '삼십칠': '37', '삼십팔': '38', '삼십구': '39', '사십': '40',
+                '사십일': '41', '사십이': '42', '사십삼': '43', '사십사': '44', '사십오': '45'
+            };
+            Object.keys(dict).sort((a,b) => b.length - a.length).forEach(k => {
+                res = res.replace(new RegExp(k, 'g'), dict[k]);
+            });
+            return res;
+        }
 
         function initSpeechRecognition() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -991,235 +977,6 @@
                 alert("현재 브라우저는 음성 인식을 지원하지 않습니다. 구글 크롬(Chrome) 브라우저를 사용해 주세요.");
                 return null;
             }
-            const rec = new SpeechRecognition();
-            rec.lang = 'ko-KR';
-            rec.continuous = true;
-            rec.interimResults = true;
-            return rec;
-        }
-
-        function startVoiceRegistration() {
-            if (isRecording) {
-                stopVoiceRegistration(true);
-                return;
-            }
-
-            recognition = initSpeechRecognition();
-            if (!recognition) return;
-
-            accumulatedTranscript = "";
-            const statusBox = document.getElementById('voice-live-status');
-            const previewText = document.getElementById('voice-transcript-preview');
-            const voiceBtn = document.getElementById('voice-main-btn');
-            
-            statusBox.classList.remove('hidden');
-            previewText.innerText = "말씀을 시작해주세요... (예: 소연이 고1 2026년 3월 85점 31번 34번, 이어서 6월 88점 32번)";
-            
-            voiceBtn.innerHTML = `<i class="fa-solid fa-square text-xs"></i> <span>말하기 완료</span>`;
-            voiceBtn.className = "px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 transition active:scale-95 whitespace-nowrap";
-
-            setupRecognitionListeners(previewText);
-
-            try {
-                recognition.start();
-                isRecording = true;
-            } catch (err) {
-                console.warn("Speech recognition start error:", err);
-            }
-        }
-
-        function setupRecognitionListeners(previewElement) {
-            recognition.onresult = (event) => {
-                let interim = '';
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    if (event.results[i].isFinal) {
-                        accumulatedTranscript += ' ' + event.results[i][0].transcript;
-                    } else {
-                        interim += event.results[i][0].transcript;
-                    }
-                }
-
-                const currentFullText = (accumulatedTranscript + ' ' + interim).trim();
-                if (currentFullText) {
-                    previewElement.innerText = currentFullText;
-                }
-            };
-
-            recognition.onerror = (event) => {
-                if (event.error === 'no-speech') return;
-                console.error("Speech recognition error", event.error);
-                if (event.error === 'not-allowed') {
-                    alert("마이크 사용 권한이 거부되었습니다.");
-                    stopVoiceRegistration(false);
-                }
-            };
-
-            recognition.onend = () => {
-                if (isRecording) {
-                    try { recognition.start(); } catch (e) {}
-                }
-            };
-        }
-
-        function stopVoiceRegistration(shouldParse = true) {
-            isRecording = false;
-
-            if (recognition) {
-                try {
-                    recognition.onend = null;
-                    recognition.stop();
-                } catch (e) {}
-            }
-
-            document.getElementById('voice-live-status').classList.add('hidden');
-            const voiceBtn = document.getElementById('voice-main-btn');
-            if (voiceBtn) {
-                voiceBtn.innerHTML = `<i class="fa-solid fa-microphone text-sm"></i> <span>음성 마이크 입력</span>`;
-                voiceBtn.className = "px-4 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 transition active:scale-95 whitespace-nowrap";
-            }
-
-            const modalBtn = document.getElementById('btn-modal-mic');
-            if (modalBtn) {
-                modalBtn.innerHTML = `<i class="fa-solid fa-microphone"></i> 말하기 시작`;
-                modalBtn.className = "px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl shadow transition flex items-center gap-1.5 whitespace-nowrap";
-            }
-
-            const previewText = document.getElementById('voice-transcript-preview');
-            const finalTranscript = (accumulatedTranscript + " " + (previewText ? previewText.innerText : "")).trim();
-            
-            if (shouldParse && finalTranscript.length > 0 && !finalTranscript.includes("말씀을 시작해주세요")) {
-                parseVoiceInputAndFill(finalTranscript);
-            }
-        }
-
-        function startVoiceRegistrationInModal() {
-            if (isRecording) {
-                stopVoiceRegistration(true);
-                return;
-            }
-
-            recognition = initSpeechRecognition();
-            if (!recognition) return;
-
-            accumulatedTranscript = "";
-            const modalBtn = document.getElementById('btn-modal-mic');
-            modalBtn.innerHTML = `<i class="fa-solid fa-square"></i> 말하기 완료`;
-            modalBtn.className = "px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow transition flex items-center gap-1.5 whitespace-nowrap";
-
-            const previewText = document.getElementById('voice-transcript-preview');
-            document.getElementById('voice-live-status').classList.remove('hidden');
-            setupRecognitionListeners(previewText);
-
-            try {
-                recognition.start();
-                isRecording = true;
-            } catch (err) {
-                console.warn("Speech recognition error in modal:", err);
-            }
-        }
-
-        function parseVoiceInputAndFill(transcript) {
-            openImageUploadModal();
-
-            // 1. 학생 이름 추출
-            let parsedName = "";
-            const directNameMatch = transcript.match(/(소연|나경|수연|우석|민준|지민|서연|하은|도윤|예준|하준|지유|서준|유진|현우|민서)/);
-            if (directNameMatch) {
-                parsedName = directNameMatch[1];
-            } else {
-                const flexNameMatch = transcript.match(/([가-힣]{2,4})\s*(학생|이|가|은|는|고|점)/);
-                if (flexNameMatch && !['고등', '모의', '고사', '원점', '학년', '시험', '고1', '고2', '고3'].includes(flexNameMatch[1])) {
-                    parsedName = flexNameMatch[1];
-                }
-            }
-
-            if (parsedName) document.getElementById('ocr-student-name').value = parsedName;
-
-            // 2. 학년 추출
-            let parsedGrade = "g1";
-            if (transcript.includes("고3") || transcript.includes("3학년")) parsedGrade = "g3";
-            else if (transcript.includes("고2") || transcript.includes("2학년")) parsedGrade = "g2";
-            else if (transcript.includes("고1") || transcript.includes("1학년")) parsedGrade = "g1";
-            document.getElementById('ocr-student-grade').value = parsedGrade;
-
-            // 3. 문장 내 여러 개의 모의고사 회차(시험) 분할 인식 (예: 3월..., 6월..., 9월..., 11월...)
-            const examChunks = transcript.split(/(?=\b(?:\d{1,2}월|3월|6월|9월|11월|모의고사|시험)\b)/gi);
-            
-            const detectedExams = [];
-            let currentYear = "2026년";
-
-            const globalYearMatch = transcript.match(/(20\d{2}|\d{2})년/);
-            if (globalYearMatch) {
-                currentYear = globalYearMatch[1].length === 2 ? `20${globalYearMatch[1]}년` : `${globalYearMatch[1]}년`;
-            }
-
-            // 구문별 시험정보 및 점수, 틀린번호 분리
-            let activeTitle = "";
-            let activeScore = 80;
-            let activeWrong = [];
-
-            const words = transcript.split(/\s+/);
-            
-            // 다중 시험 입력 처리 알고리즘
-            const examMatches = [...transcript.matchAll(/(\d{1,2})월[^\d]*(\d{1,3})\s*점([^\d]*\d+번?)* /g)];
-
-            if (examChunks.length > 1) {
-                examChunks.forEach(chunk => {
-                    const monthMatch = chunk.match(/(\d{1,2})월/);
-                    const scoreMatch = chunk.match(/(\d{1,3})\s*점/);
-                    
-                    if (monthMatch || scoreMatch) {
-                        const mTitle = monthMatch ? `${currentYear} ${monthMatch[1]}월 모의고사` : `${currentYear} 모의고사`;
-                        const mScore = scoreMatch ? parseInt(scoreMatch[1]) : 85;
-
-                        // 틀린 번호 추출
-                        let wrongNums = [];
-                        const numMatches = chunk.matchAll(/(\d{1,2})\s*번?/g);
-                        for (const match of numMatches) {
-                            const num = parseInt(match[1]);
-                            if (num >= 1 && num <= 45 && num !== mScore && (!monthMatch || num !== parseInt(monthMatch[1]))) {
-                                wrongNums.push(num);
-                            }
-                        }
-                        detectedExams.push({
-                            title: mTitle,
-                            score: mScore,
-                            wrong: [...new Set(wrongNums)].join(', ')
-                        });
-                    }
-                });
-            }
-
-            // 감지된 시험이 있다면 자동으로 칸들을 모두 생성해주고, 없으면 기본 1개 생성
-            if (detectedExams.length > 0) {
-                renderOcrExamRows(detectedExams);
-            } else {
-                // 단일 문장 파싱 Fallback
-                let month = "3월";
-                const monthMatch = transcript.match(/(\d{1,2})월/);
-                if (monthMatch) month = `${monthMatch[1]}월`;
-                
-                let score = 85;
-                const scoreMatch = transcript.match(/(\d{1,3})\s*점/);
-                if (scoreMatch) score = parseInt(scoreMatch[1]);
-
-                let wrongNums = [];
-                const numMatches = transcript.matchAll(/(\d{1,2})\s*번?/g);
-                for (const match of numMatches) {
-                    const num = parseInt(match[1]);
-                    if (num >= 1 && num <= 45 && num !== score && num !== parseInt(month)) {
-                        wrongNums.push(num);
-                    }
-                }
-                renderOcrExamRows([{
-                    title: `${currentYear} ${month} 모의고사`,
-                    score: score,
-                    wrong: [...new Set(wrongNums)].join(', ')
-                }]);
-            }
-
-            document.getElementById('ocr-memo').value = `• [2026년 연속 음성 자동 입력 리포트]\n - 수강생명: ${parsedName || '소연'}\n - 총 ${document.querySelectorAll('.ocr-exam-item').length}개 시험 회차 음성 등록 완료`;
-        }
             const rec = new SpeechRecognition();
             rec.lang = 'ko-KR';
             rec.continuous = true;
@@ -1267,7 +1024,6 @@
                         interim += event.results[i][0].transcript;
                     }
                 }
-
                 const currentFullText = (accumulatedTranscript + ' ' + interim).trim();
                 if (currentFullText) {
                     previewElement.innerText = currentFullText;
@@ -1314,10 +1070,11 @@
             }
 
             const previewText = document.getElementById('voice-transcript-preview');
-            const finalTranscript = (accumulatedTranscript + " " + (previewText ? previewText.innerText : "")).trim();
+            const rawText = (accumulatedTranscript + " " + (previewText ? previewText.innerText : "")).trim();
+            const normalizedText = koreanNumberToDigit(rawText);
             
-            if (shouldParse && finalTranscript.length > 0 && !finalTranscript.includes("말씀을 시작해주세요")) {
-                parseVoiceInputAndFill(finalTranscript);
+            if (shouldParse && normalizedText.length > 0 && !normalizedText.includes("말씀을 시작해주세요")) {
+                parseVoiceInputAndFill(normalizedText);
             }
         }
 
@@ -1350,28 +1107,31 @@
         function parseVoiceInputAndFill(transcript) {
             openImageUploadModal();
 
-            // 1. Extract Name (소연, 나경, 수연 등 모든 이름 지원)
+            // 1. 이름 추출
             let parsedName = "";
-            const directNameMatch = transcript.match(/(소연|나경|수연|우석|민준|지민|서연|하은|도윤|예준|하준|지유|서준|유진|현우|민서)/);
-            if (directNameMatch) {
-                parsedName = directNameMatch[1];
-            } else {
+            const names = ["수연", "나경", "소연", "민준", "지민", "서연", "하은", "도윤", "예준", "하준", "지유", "서준", "유진", "현우", "민서"];
+            for (let name of names) {
+                if (transcript.includes(name)) {
+                    parsedName = name;
+                    break;
+                }
+            }
+            if (!parsedName) {
                 const flexNameMatch = transcript.match(/([가-힣]{2,4})\s*(학생|이|가|은|는|고|점)/);
                 if (flexNameMatch && !['고등', '모의', '고사', '원점', '학년', '시험', '고1', '고2', '고3'].includes(flexNameMatch[1])) {
                     parsedName = flexNameMatch[1];
                 }
             }
+            if (parsedName) document.getElementById('ocr-student-name').value = parsedName;
 
-            document.getElementById('ocr-student-name').value = parsedName || "";
-
-            // 2. Grade Check
+            // 2. 학년 추출
             let parsedGrade = "g1";
             if (transcript.includes("고3") || transcript.includes("3학년")) parsedGrade = "g3";
             else if (transcript.includes("고2") || transcript.includes("2학년")) parsedGrade = "g2";
             else if (transcript.includes("고1") || transcript.includes("1학년")) parsedGrade = "g1";
             document.getElementById('ocr-student-grade').value = parsedGrade;
 
-            // 3. Exam Title
+            // 3. 년도/월/점수/틀린번호 추출
             let year = "2025년";
             let month = "3월";
             const yearMatch = transcript.match(/(20\d{2}|\d{2})년/);
@@ -1379,19 +1139,12 @@
                 year = yearMatch[1].length === 2 ? `20${yearMatch[1]}년` : `${yearMatch[1]}년`;
             }
             const monthMatch = transcript.match(/(\d{1,2})월/);
-            if (monthMatch) {
-                month = `${monthMatch[1]}월`;
-            }
-            const examTitle = `${year} ${month} 모의고사`;
+            if (monthMatch) month = `${monthMatch[1]}월`;
 
-            // 4. Score
             let score = 85;
             const scoreMatch = transcript.match(/(\d{1,3})\s*점/);
-            if (scoreMatch) {
-                score = parseInt(scoreMatch[1]);
-            }
+            if (scoreMatch) score = parseInt(scoreMatch[1]);
 
-            // 5. Wrong Question Numbers
             let wrongNums = [];
             const numMatches = transcript.matchAll(/(\d{1,2})\s*번?/g);
             for (const match of numMatches) {
@@ -1403,15 +1156,13 @@
             wrongNums = [...new Set(wrongNums)];
 
             renderOcrExamRows([
-                { title: examTitle, score: score, wrong: wrongNums.join(', ') }
+                { title: `${year} ${month} 모의고사`, score: score, wrong: wrongNums.join(', ') }
             ]);
 
-            document.getElementById('ocr-memo').value = `• [음성 자동 입력 리포트]\n - 학생명: ${parsedName || '미지정'}\n - 시험: ${examTitle} (${score}점)\n - 주요 오답 번호: ${wrongNums.length > 0 ? wrongNums.map(n => `${n}번(${getItemType(n)})`).join(', ') : '없음'}`;
+            document.getElementById('ocr-memo').value = `• [음성 정밀 자동 입력 리포트]\n - 학생명: ${parsedName || '미지정'}\n - 시험: ${year} ${month} 모의고사 (${score}점)\n - 주요 오답 번호: ${wrongNums.length > 0 ? wrongNums.map(n => `${n}번(${getItemType(n)})`).join(', ') : '없음'}`;
         }
 
-        // ==========================================
-        // PHOTO OCR & GEMINI VISION INTEGRATION
-        // ==========================================
+        // PHOTO OCR & VISION INTEGRATION
         function openImageUploadModal() {
             document.getElementById('imageUploadModal').classList.remove('hidden');
         }
@@ -1437,12 +1188,12 @@
                         await callGeminiVisionAPI(base64Data, file.type);
                         return;
                     } catch (err) {
-                        console.error("Gemini API call failed", err);
+                        console.error("Gemini Vision API error", err);
                     }
                 }
 
                 setTimeout(() => {
-                    document.getElementById('ocr-status-text').innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> AI 스캔 분석 완료 (기본 템플릿)`;
+                    document.getElementById('ocr-status-text').innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> AI 스캔 완료 (기본 서식 적용)`;
                     document.getElementById('ocr-student-name').value = "소연";
                     document.getElementById('ocr-student-grade').value = "g1";
 
@@ -1450,8 +1201,8 @@
                         { title: "2025년 3월 모의고사", score: 85, wrong: "31, 34, 37" }
                     ]);
 
-                    document.getElementById('ocr-memo').value = "• [스캔 노트 개별 처방전]\n - 고난도 빈칸추론 문항 집중 대비중.";
-                }, 800);
+                    document.getElementById('ocr-memo').value = "• [사진 분석 약점 처방전]\n - 빈칸 추론 및 순서 삽입 고난도 영역 집중 대비 필요.";
+                }, 600);
             };
             reader.readAsDataURL(file);
         }
@@ -1493,7 +1244,7 @@
                     }));
                     renderOcrExamRows(mappedExams);
                 }
-                document.getElementById('ocr-status-text').innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> Gemini AI 정밀 스캔 완료`;
+                document.getElementById('ocr-status-text').innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> Gemini AI 비전 스캔 완료`;
             }
         }
 
@@ -1594,10 +1345,9 @@
                 student.exams = newExams;
             }
 
-            // Save to Local & Firebase Cloud
             saveDataToStorage(true);
             closeImageUploadModal();
-            alert(`[${name}] 학생의 누적 오답 기록이 Google Cloud DB에 저장되었습니다!`);
+            alert(`[${name}] 학생의 오답 기록이 저장되었습니다!`);
 
             switchMode('teacher');
             renderTeacherDashboard();
@@ -1625,7 +1375,7 @@
                         window.studentData = imported;
                         saveDataToStorage(true);
                         renderTeacherDashboard();
-                        alert("학생 데이터 복원 및 클라우드 동기화가 완료되었습니다!");
+                        alert("학생 데이터 복원이 완료되었습니다!");
                     }
                 } catch (err) {
                     alert("올바른 JSON 데이터 파일이 아닙니다.");
