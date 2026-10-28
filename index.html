@@ -1506,6 +1506,94 @@ Return strictly JSON with NO markdown formatting around JSON:
             appendOcrExamRow({ title: "", score: "", wrong: "" });
         }
 
+        // SAVE OCR / HANDLED RESULTS TO STORAGE & CLOUD
+        function saveOcrResult() {
+            const nameInput = document.getElementById('ocr-student-name');
+            const gradeSelect = document.getElementById('ocr-student-grade');
+            const memoTextarea = document.getElementById('ocr-memo');
+
+            const name = nameInput ? nameInput.value.trim() : "";
+            const grade = gradeSelect ? gradeSelect.value : "g1";
+            const memo = memoTextarea ? memoTextarea.value.trim() : "";
+
+            if (!name) {
+                alert("학생 이름을 입력해 주세요.");
+                if (nameInput) nameInput.focus();
+                return;
+            }
+
+            // 모달 내 회차 목록 읽기
+            const examItems = document.querySelectorAll('.ocr-exam-item');
+            const exams = [];
+
+            examItems.forEach((item, index) => {
+                const title = item.querySelector('.ocr-exam-title')?.value.trim() || `모의고사 ${index + 1}`;
+                const scoreVal = item.querySelector('.ocr-exam-score')?.value;
+                const score = scoreVal !== "" && !isNaN(scoreVal) ? parseInt(scoreVal) : 80;
+                const wrongRaw = item.querySelector('.ocr-exam-wrong')?.value || "";
+                
+                // 틀린 번호 숫자 배열로 파싱 (1~45번)
+                const wrongNumbers = wrongRaw
+                    .split(/[,;\s]+/)
+                    .map(n => parseInt(n.replace(/[^0-9]/g, '')))
+                    .filter(n => !isNaN(n) && n >= 1 && n <= 45);
+
+                exams.push({
+                    id: index + 1,
+                    title: title,
+                    score: score,
+                    wrongNumbers: wrongNumbers
+                });
+            });
+
+            const gradeLabelMap = { 'g1': '고1', 'g2': '고2', 'g3': '고3' };
+            const gradeLabel = gradeLabelMap[grade] || '고1';
+
+            if (currentEditingStudentId) {
+                // 기존 학생 데이터 수정 갱신
+                const studentIndex = window.studentData.findIndex(s => s.id === currentEditingStudentId);
+                if (studentIndex !== -1) {
+                    window.studentData[studentIndex] = {
+                        ...window.studentData[studentIndex],
+                        name: name,
+                        grade: grade,
+                        gradeLabel: gradeLabel,
+                        memo: memo,
+                        exams: exams
+                    };
+                }
+            } else {
+                // 동일 학년 & 이름의 기존 학생이 존재하는지 확인
+                const existingIndex = window.studentData.findIndex(s => s.name === name && s.grade === grade);
+                if (existingIndex !== -1) {
+                    // 기존 동일 학생에 데이터 덮어쓰기/합치기
+                    window.studentData[existingIndex] = {
+                        ...window.studentData[existingIndex],
+                        memo: memo,
+                        exams: exams
+                    };
+                } else {
+                    // 신규 학생 등록
+                    const newStudent = {
+                        id: Date.now(),
+                        name: name,
+                        grade: grade,
+                        gradeLabel: gradeLabel,
+                        memo: memo,
+                        exams: exams
+                    };
+                    window.studentData.unshift(newStudent);
+                }
+            }
+
+            // 저장 처리 및 클라우드 동기화
+            saveDataToStorage(true);
+            renderTeacherDashboard();
+
+            alert(`[${name}] 학생의 오답 분석 데이터가 성공적으로 저장되었습니다!`);
+            closeImageUploadModal();
+        }
+
         // AI AUTOMATIC PATTERN ANALYSIS & STRATEGIC ACTION PLAN GENERATOR
         function autoAnalyzePatternAndFillMemo() {
             const examItems = document.querySelectorAll('.ocr-exam-item');
