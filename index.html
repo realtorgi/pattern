@@ -35,7 +35,6 @@
         .recording-active { animation: pulse-ring 1.5s infinite; }
     </style>
 
-    <!-- Firebase SDK & 8명 원본 데이터 복구 연동 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -77,7 +76,7 @@
             },
             async deleteStudentFromCloud(docId) {
                 try {
-                    await deleteDoc(docRef = doc(db, 'artifacts', defaultAppId, 'public', 'data', 'students', String(docId)));
+                    await deleteDoc(doc(db, 'artifacts', defaultAppId, 'public', 'data', 'students', String(docId)));
                 } catch (e) {}
             }
         };
@@ -96,18 +95,14 @@
                 const cloudData = [];
                 snapshot.forEach((docSnap) => { cloudData.push(docSnap.data()); });
 
-                if (cloudData.length >= 8) {
+                if (cloudData.length > 0) {
                     window.studentData = cloudData.sort((a, b) => (b.id || 0) - (a.id || 0));
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(window.studentData));
-                    updateBadge('connected', `모든 기기 실시간 클라우드 동기화 연결됨 (${window.studentData.length}명)`);
-                } else {
-                    // 클라우드에 8명 미만일 경우 원장님의 8명 데이터를 클라우드에 강제 업로드하여 복원
-                    if (window.studentData && window.studentData.length === 8) {
-                        window.studentData.forEach(s => window.FB_SERVICE.saveStudentToCloud(s));
-                    }
-                    updateBadge('connected', `모든 기기 실시간 클라우드 동기화 연결됨 (${window.studentData.length}명)`);
+                } else if (window.studentData && window.studentData.length > 0) {
+                    window.studentData.forEach(s => window.FB_SERVICE.saveStudentToCloud(s));
                 }
 
+                updateBadge('connected', `클라우드 동기화 완료 (${window.studentData.length}명)`);
                 if (window.currentSystemMode === 'teacher') {
                     window.renderTeacherDashboard();
                 }
@@ -131,8 +126,8 @@
             </div>
             <div class="flex items-center space-x-3">
                 <div class="bg-navy-950 p-1 rounded-2xl border border-indigo-900/80 flex items-center space-x-1">
-                    <button onclick="switchMode('student')" id="btn-mode-student" class="px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5"><i class="fa-solid fa-user-graduate"></i> 학생 모드</button>
-                    <button onclick="switchMode('teacher')" id="btn-mode-teacher" class="px-3 py-1.5 rounded-xl text-xs font-bold transition bg-purple-600 text-white shadow-md flex items-center gap-1.5"><i class="fa-solid fa-chalkboard-user"></i> 선생님 모드</button>
+                    <button onclick="switchMode('student')" id="btn-mode-student" class="px-3 py-1.5 rounded-xl text-xs font-bold transition bg-indigo-600 text-white shadow-md flex items-center gap-1.5"><i class="fa-solid fa-user-graduate"></i> 학생 모드</button>
+                    <button onclick="switchMode('teacher')" id="btn-mode-teacher" class="px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5"><i class="fa-solid fa-chalkboard-user text-purple-400"></i> 선생님 모드</button>
                 </div>
                 <a href="tel:010-8921-7812" class="hidden sm:flex items-center space-x-2 text-rose-400 hover:text-rose-300 transition text-sm font-bold bg-navy-800/80 px-3 py-1.5 rounded-xl border border-rose-500/20">
                     <i class="fa-solid fa-phone"></i>
@@ -143,36 +138,58 @@
     </header>
 
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        <!-- VIEW 2: TEACHER MANAGEMENT VIEW -->
+        <!-- VIEW 1: STUDENT VIEW -->
+        <div id="view-student-portal" class="space-y-6 hidden">
+            <div id="checkin-card" class="max-w-2xl mx-auto bg-navy-900/90 rounded-3xl border border-indigo-900/60 p-6 sm:p-8 shadow-2xl">
+                <h2 class="text-xl font-black text-white mb-2"><i class="fa-solid fa-chart-line text-indigo-400"></i> 학생 성적 분석과 대비책</h2>
+                <form onsubmit="handleStudentCheckin(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <select id="checkin-grade" required class="w-full px-4 py-3 text-sm bg-navy-950 border border-indigo-800 rounded-2xl text-slate-100">
+                            <option value="">-- 학년 선택 --</option>
+                            <option value="g1">고1</option><option value="g2">고2</option><option value="g3">고3</option>
+                        </select>
+                        <input type="text" id="checkin-name" required placeholder="이름 입력" class="w-full px-4 py-3 text-sm bg-navy-950 border border-indigo-800 rounded-2xl text-slate-100">
+                    </div>
+                    <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold">조회하기</button>
+                </form>
+            </div>
+            <div id="student-dashboard" class="hidden space-y-6">
+                <div class="bg-navy-900 rounded-3xl border border-indigo-800 p-6 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-2xl font-black text-white" id="display-student-name"></h2>
+                        <button onclick="backToCheckin()" class="text-xs text-slate-400 mt-1"><i class="fa-solid fa-rotate-left"></i> 다른 학생 조회</button>
+                    </div>
+                </div>
+                <div class="bg-navy-900 rounded-3xl border border-indigo-900 p-6" id="student-display-memo"></div>
+            </div>
+        </div>
+
+        <!-- VIEW 2: TEACHER VIEW -->
         <div id="view-teacher-portal" class="space-y-6">
             <div class="bg-gradient-to-r from-purple-950 via-indigo-950 to-navy-900 rounded-3xl border border-purple-500/40 p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-5">
-                <div class="space-y-1 text-center md:text-left">
-                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-full text-xs font-bold">
-                        <i class="fa-solid fa-user-shield"></i> 원장 지남 선생님 전용 데이터 통합 관리자 (8명 데이터 복구 완료 버전)
-                    </div>
+                <div class="space-y-1">
                     <h3 class="text-xl font-black text-white">오답/패턴 데이터 사진 스캔 & 스마트 음성 즉시 등록</h3>
+                    <p class="text-xs text-purple-200/80">사진 스캔 및 음성 마이크로 오답 기록을 등록하세요.</p>
                 </div>
-            </div>
-
-            <div class="flex flex-wrap items-center justify-between bg-navy-900/80 p-3.5 rounded-2xl border border-indigo-900/60 text-xs gap-3">
-                <div class="flex items-center space-x-2 font-medium" id="cloud-status-badge">
-                    <i class="fa-solid fa-spinner fa-spin text-indigo-400"></i>
-                    <span class="text-indigo-300">Firebase 클라우드 연결 중...</span>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <button onclick="forceSyncAllToCloud()" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl font-bold transition flex items-center gap-1.5">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> 8명 데이터 클라우드 강제 업로드
+                <div class="flex items-center gap-2">
+                    <button onclick="openImageUploadModal()" class="px-5 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-2xl shadow-xl flex items-center gap-2">
+                        <i class="fa-solid fa-camera"></i> 회차 스캔 & 등록
                     </button>
-                    <button onclick="exportDataJSON()" class="px-3 py-1.5 bg-navy-950 hover:bg-indigo-900/50 text-slate-200 rounded-xl font-bold transition">데이터 백업(JSON)</button>
                 </div>
             </div>
 
-            <!-- Student List Table -->
-            <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4">
-                <div class="flex items-center justify-between">
-                    <h3 class="font-bold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-users text-purple-400"></i> 수강생 누적 오답 데이터 관리</h3>
-                    <span id="teacher-student-count-badge" class="text-xs text-indigo-300 font-bold">등록된 수강생: 8명</span>
+            <div class="flex items-center justify-between bg-navy-900/80 p-3.5 rounded-2xl border border-indigo-900/60 text-xs">
+                <div id="cloud-status-badge" class="text-indigo-300">클라우드 연결 중...</div>
+                <div class="flex items-center gap-2">
+                    <button onclick="forceSyncAllToCloud()" class="px-3 py-1.5 bg-emerald-700 text-white rounded-xl font-bold">강제 동기화</button>
+                    <button onclick="exportDataJSON()" class="px-3 py-1.5 bg-navy-950 text-slate-200 rounded-xl font-bold">데이터 백업(JSON)</button>
+                    <button onclick="document.getElementById('importFileInput').click()" class="px-3 py-1.5 bg-navy-950 text-slate-200 rounded-xl font-bold">데이터 복원</button>
+                    <input type="file" id="importFileInput" accept=".json" onchange="importDataJSON(event)" class="hidden">
                 </div>
+            </div>
+
+            <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4">
+                <h3 class="font-bold text-sm text-white"><i class="fa-solid fa-users text-purple-400"></i> 수강생 누적 오답 데이터 관리</h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs text-slate-300 border-collapse">
                         <thead>
@@ -181,8 +198,7 @@
                                 <th class="p-3 font-bold">학생 이름</th>
                                 <th class="p-3 font-bold">응시 횟수</th>
                                 <th class="p-3 font-bold">평균 점수</th>
-                                <th class="p-3 font-bold">최다 오답 번호</th>
-                                <th class="p-3 font-bold text-center">관리</th>
+                                <th class="p-3 font-bold text-center">관리 / 리포트 보기</th>
                             </tr>
                         </thead>
                         <tbody id="teacher-student-table-body" class="divide-y divide-indigo-950"></tbody>
@@ -192,42 +208,78 @@
         </div>
     </main>
 
+    <!-- Modal -->
+    <div id="imageUploadModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-navy-900 rounded-3xl w-full max-w-xl p-6 space-y-4 border border-purple-500">
+            <h3 class="font-bold text-white text-sm">학생 오답 등록 및 수정</h3>
+            <input type="text" id="ocr-student-name" placeholder="학생 이름" class="w-full px-3 py-2 bg-navy-950 text-white border border-indigo-800 rounded-xl">
+            <select id="ocr-student-grade" class="w-full px-3 py-2 bg-navy-950 text-white border border-indigo-800 rounded-xl">
+                <option value="g1">고1</option><option value="g2">고2</option><option value="g3">고3</option>
+            </select>
+            <textarea id="ocr-memo" rows="3" placeholder="메모 및 처방전" class="w-full px-3 py-2 bg-navy-950 text-white border border-indigo-800 rounded-xl"></textarea>
+            <div class="flex justify-end gap-2">
+                <button onclick="closeImageUploadModal()" class="px-4 py-2 text-slate-400">취소</button>
+                <button onclick="saveOcrResult()" class="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold">저장</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const STORAGE_KEY = "seattle_english_student_data_v3";
         window.currentSystemMode = 'teacher';
-
-        // 원장님이 작업하신 8명의 원본 데이터 복구 반영
-        const recoveredStudents = [
-            { id: 1710000001, name: "리후", grade: "g3", gradeLabel: "고3", memo: "• [고3 리후 학생 오답 분석]\n - 빈칸 추론 및 순서삽입 집중 보완 필요.", exams: [{ id: 1, title: "10월 학평", score: 83.5, wrongNumbers: [29, 31, 33] }] },
-            { id: 1710000002, name: "휘준", grade: "g3", gradeLabel: "고3", memo: "• [고3 휘준 학생 오답 분석]\n - 고난도 빈칸 문항 연습 진행.", exams: [{ id: 1, title: "10월 학평", score: 86.7, wrongNumbers: [32, 37, 34] }] },
-            { id: 1710000003, name: "동현", grade: "g2", gradeLabel: "고2", memo: "• [고2 동현 학생 오답 분석]\n - 어법 및 어휘 유형 강화.", exams: [{ id: 1, title: "10월 학평", score: 80.3, wrongNumbers: [40, 34, 38] }] },
-            { id: 1710000004, name: "규민", grade: "g2", gradeLabel: "고2", memo: "• [고2 규민 학생 오답 분석]\n - 이번 2학기 중간고사 9문항 미스나서 가채점 59.5입니다.", exams: [{ id: 1, title: "2학기 중간고사", score: 59.5, wrongNumbers: [29, 30, 36] }] },
-            { id: 1710000005, name: "수현", grade: "g1", gradeLabel: "고1", memo: "• [고1 수현 10월학평 리포트]\n - 가채점 90점, 1등급입니다.", exams: [{ id: 1, title: "10월학평", score: 90, wrongNumbers: [32, 37, 8] }] },
-            { id: 1710000006, name: "소연", grade: "g1", gradeLabel: "고1", memo: "• [고1 소연 학생 오답 분석]\n - 기초 어휘 및 구문 독해 집중 지도.", exams: [{ id: 1, title: "모의고사", score: 49.3, wrongNumbers: [23, 24, 29] }] },
-            { id: 1710000007, name: "태욱", grade: "g1", gradeLabel: "고1", memo: "• [고1 태욱 학생 오답 분석]\n - 유형별 풀이 스킬 연습.", exams: [{ id: 1, title: "모의고사", score: 68.0, wrongNumbers: [21, 37, 38] }] },
-            { id: 1710000008, name: "나경", grade: "g1", gradeLabel: "고1", memo: "• [고1 나경 학생 오답 분석]\n - 오답 노트 정리 철저.", exams: [{ id: 1, title: "모의고사", score: 81.0, wrongNumbers: [29, 30, 33] }] }
+        window.studentData = [
+            { id: 1, name: "리후", grade: "g3", gradeLabel: "고3", memo: "고3 리후 학생", exams: [{ id: 1, title: "10월 학평", score: 83.5, wrongNumbers: [29, 31] }] },
+            { id: 2, name: "휘준", grade: "g3", gradeLabel: "고3", memo: "고3 휘준 학생", exams: [{ id: 1, title: "10월 학평", score: 86.7, wrongNumbers: [32, 37] }] },
+            { id: 3, name: "동현", grade: "g2", gradeLabel: "고2", memo: "고2 동현 학생", exams: [{ id: 1, title: "10월 학평", score: 80.3, wrongNumbers: [40, 34] }] },
+            { id: 4, name: "규민", grade: "g2", gradeLabel: "고2", memo: "가채점 59.5", exams: [{ id: 1, title: "중간고사", score: 59.5, wrongNumbers: [29, 30] }] },
+            { id: 5, name: "수현", grade: "g1", gradeLabel: "고1", memo: "1등급 90점", exams: [{ id: 1, title: "10월학평", score: 90, wrongNumbers: [32, 37] }] },
+            { id: 6, name: "소연", grade: "g1", gradeLabel: "고1", memo: "고1 소연 학생", exams: [{ id: 1, title: "모의고사", score: 49.3, wrongNumbers: [23, 24] }] },
+            { id: 7, name: "태욱", grade: "g1", gradeLabel: "고1", memo: "고1 태욱 학생", exams: [{ id: 1, title: "모의고사", score: 68.0, wrongNumbers: [21, 37] }] },
+            { id: 8, name: "나경", grade: "g1", gradeLabel: "고1", memo: "고1 나경 학생", exams: [{ id: 1, title: "모의고사", score: 81.0, wrongNumbers: [29, 30] }] }
         ];
 
-        window.studentData = [];
-
         function loadData() {
-            window.studentData = [...recoveredStudents];
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(window.studentData));
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try { window.studentData = JSON.parse(saved); } catch (e) {}
+            } else {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(window.studentData));
+            }
         }
 
-        window.forceSyncAllToCloud = function() {
+        window.saveDataToStorage = function() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(window.studentData));
             window.studentData.forEach(s => {
                 if (window.FB_SERVICE && window.FB_SERVICE.saveStudentToCloud) {
                     window.FB_SERVICE.saveStudentToCloud(s);
                 }
             });
-            alert("8명의 학생 데이터가 Firebase 클라우드 서버에 성공적으로 업로드되었습니다!");
-            window.renderTeacherDashboard();
+        };
+
+        window.forceSyncAllToCloud = function() {
+            window.saveDataToStorage();
+            alert("모든 학생 데이터가 클라우드에 강제 동기화되었습니다!");
         };
 
         window.onload = function() {
             loadData();
-            window.renderTeacherDashboard();
+            switchMode('teacher');
+        };
+
+        window.switchMode = function(mode) {
+            window.currentSystemMode = mode;
+            if (mode === 'teacher') {
+                document.getElementById('view-teacher-portal').classList.remove('hidden');
+                document.getElementById('view-student-portal').classList.add('hidden');
+                document.getElementById('btn-mode-teacher').className = "px-3 py-1.5 rounded-xl text-xs font-bold transition bg-purple-600 text-white shadow-md flex items-center gap-1.5";
+                document.getElementById('btn-mode-student').className = "px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5";
+                renderTeacherDashboard();
+            } else {
+                document.getElementById('view-teacher-portal').classList.add('hidden');
+                document.getElementById('view-student-portal').classList.remove('hidden');
+                document.getElementById('btn-mode-student').className = "px-3 py-1.5 rounded-xl text-xs font-bold transition bg-indigo-600 text-white shadow-md flex items-center gap-1.5";
+                document.getElementById('btn-mode-teacher').className = "px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5";
+            }
         };
 
         window.renderTeacherDashboard = function() {
@@ -235,28 +287,95 @@
             if (!tbody) return;
             tbody.innerHTML = window.studentData.map(student => `
                 <tr class="hover:bg-navy-950/60 transition">
-                    <td class="p-3 font-bold text-indigo-300">${student.gradeLabel}</td>
+                    <td class="p-3 font-bold text-indigo-300">${student.gradeLabel || student.grade}</td>
                     <td class="p-3 font-bold text-white">${student.name}</td>
-                    <td class="p-3 text-slate-300">${student.exams.length}회</td>
-                    <td class="p-3 font-extrabold text-emerald-400">${student.exams[0].score}점</td>
-                    <td class="p-3 text-rose-400 font-semibold">${student.exams[0].wrongNumbers.join(', ')}번</td>
-                    <td class="p-3 text-center">
-                        <span class="px-2.5 py-1 bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-[10px] font-bold">복구 완료</span>
+                    <td class="p-3 text-slate-300">${(student.exams || []).length}회</td>
+                    <td class="p-3 font-extrabold text-emerald-400">${student.exams?.[0]?.score || 0}점</td>
+                    <td class="p-3 text-center space-x-1">
+                        <button onclick="previewStudentReport('${student.name}', '${student.grade}')" class="px-2.5 py-1.5 bg-indigo-600 text-white rounded-xl font-bold text-[11px]">리포트</button>
+                        <button onclick="editStudent(${student.id})" class="px-2.5 py-1.5 bg-purple-600 text-white rounded-xl font-bold text-[11px]">수정</button>
+                        <button onclick="deleteStudent(${student.id})" class="px-2.5 py-1.5 bg-rose-900 text-rose-200 rounded-xl font-bold text-[11px]">삭제</button>
                     </td>
                 </tr>
             `).join('');
         };
 
-        function exportDataJSON() {
+        window.previewStudentReport = function(name, grade) {
+            switchMode('student');
+            const student = window.studentData.find(s => s.name === name && s.grade === grade);
+            if (student) {
+                document.getElementById('display-student-name').innerText = `${student.name} 학생 분석 리포트`;
+                document.getElementById('student-display-memo').innerText = student.memo || "메모 없음";
+            }
+        };
+
+        window.backToCheckin = function() {
+            switchMode('teacher');
+        };
+
+        window.openImageUploadModal = function() {
+            document.getElementById('imageUploadModal').classList.remove('hidden');
+        };
+
+        window.closeImageUploadModal = function() {
+            document.getElementById('imageUploadModal').classList.add('hidden');
+        };
+
+        window.saveOcrResult = function() {
+            const name = document.getElementById('ocr-student-name').value.trim();
+            const grade = document.getElementById('ocr-student-grade').value;
+            const memo = document.getElementById('ocr-memo').value.trim();
+            if (!name) { alert("이름을 입력하세요."); return; }
+            window.studentData.push({ id: Date.now(), name, grade, gradeLabel: grade === 'g1' ? '고1' : grade === 'g2' ? '고2' : '고3', memo, exams: [] });
+            saveDataToStorage();
+            renderTeacherDashboard();
+            closeImageUploadModal();
+        };
+
+        window.deleteStudent = function(id) {
+            if (confirm("정말 삭제하시겠습니까?")) {
+                window.studentData = window.studentData.filter(s => s.id !== id);
+                saveDataToStorage();
+                renderTeacherDashboard();
+                if (window.FB_SERVICE && window.FB_SERVICE.deleteStudentFromCloud) {
+                    window.FB_SERVICE.deleteStudentFromCloud(id);
+                }
+            }
+        };
+
+        window.editStudent = function(id) {
+            const student = window.studentData.find(s => s.id === id);
+            if (!student) return;
+            document.getElementById('ocr-student-name').value = student.name;
+            document.getElementById('ocr-student-grade').value = student.grade;
+            document.getElementById('ocr-memo').value = student.memo || "";
+            openImageUploadModal();
+        };
+
+        window.exportDataJSON = function() {
             const dataStr = JSON.stringify(window.studentData, null, 2);
             const blob = new Blob([dataStr], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `seattle_english_8_students_backup.json`;
+            a.download = `backup.json`;
             a.click();
-            URL.revokeObjectURL(url);
-        }
+        };
+
+        window.importDataJSON = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    window.studentData = JSON.parse(evt.target.result);
+                    saveDataToStorage();
+                    renderTeacherDashboard();
+                    alert("복원 완료!");
+                } catch (err) { alert("파일 오류"); }
+            };
+            reader.readAsText(file);
+        };
     </script>
 </body>
 </html>
