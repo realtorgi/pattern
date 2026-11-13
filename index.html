@@ -69,27 +69,38 @@
         }
     </style>
 
-    <!-- Firebase SDK Modular Import -->
+    <!-- Firebase SDK Modular Import (sea-patten 실서버 연동 완료) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const defaultAppId = typeof __app_id !== 'undefined' ? __app_id : 'seattle-english-app';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : {
-                apiKey: "AIzaSyDemoConfigOnlyForLocalTestingPlaceholder",
-                authDomain: "seattle-english-app.firebaseapp.com",
-                projectId: "seattle-english-app",
-                storageBucket: "seattle-english-app.appspot.com",
-                messagingSenderId: "1234567890",
-                appId: "1:1234567890:web:abcdef123456"
-            };
+        const defaultAppId = 'seattle-english-app';
+        const firebaseConfig = {
+            apiKey: "AIzaSyAWDVumJr03-BKDDrGwr5qVhjwav3j6Ov0",
+            authDomain: "sea-patten.firebaseapp.com",
+            projectId: "sea-patten",
+            storageBucket: "sea-patten.firebasestorage.app",
+            messagingSenderId: "417786307737",
+            appId: "1:417786307737:web:dabf32b578e4e0f59e0408"
+        };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        let isInitialSnapshotReceived = false;
+
+        function updateBadge(status, text) {
+            const badge = document.getElementById('cloud-status-badge');
+            if (!badge) return;
+            if (status === 'connected') {
+                badge.innerHTML = `<i class="fa-solid fa-cloud-check text-emerald-400"></i> <span class="text-emerald-300">${text}</span>`;
+            } else if (status === 'syncing') {
+                badge.innerHTML = `<i class="fa-solid fa-arrows-rotate fa-spin text-indigo-400"></i> <span class="text-indigo-300">${text}</span>`;
+            } else {
+                badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-400"></i> <span class="text-amber-300">${text}</span>`;
+            }
+        }
 
         window.FB_SERVICE = {
             db: db,
@@ -99,19 +110,14 @@
             
             async saveStudentToCloud(studentObj) {
                 try {
+                    updateBadge('syncing', '클라우드 서버에 실시간 저장 중...');
                     const docId = String(studentObj.id);
                     const docRef = doc(db, 'artifacts', defaultAppId, 'public', 'data', 'students', docId);
                     await setDoc(docRef, studentObj, { merge: true });
-                    console.log("Cloud Saved Successfully:", docId);
+                    updateBadge('connected', '모든 기기 실시간 클라우드 동기화 완료 (sea-patten)');
                 } catch (e) {
-                    console.warn("Cloud Save Warning (Saved to Local Storage instead):", e.message);
-                    const badge = document.getElementById('cloud-status-badge');
-                    if (badge) {
-                        badge.innerHTML = `
-                            <i class="fa-solid fa-hard-drive text-emerald-400"></i>
-                            <span class="text-emerald-300">로컬 브라우저 안전 저장 완료</span>
-                        `;
-                    }
+                    console.error("Cloud Save Error:", e);
+                    updateBadge('error', `클라우드 저장 실패 (${e.code || '권한 확인 필요'}) - 로컬 저장됨`);
                 }
             },
 
@@ -119,7 +125,6 @@
                 try {
                     const docRef = doc(db, 'artifacts', defaultAppId, 'public', 'data', 'students', String(docId));
                     await deleteDoc(docRef);
-                    console.log("Cloud Deleted Successfully:", docId);
                 } catch (e) {
                     console.warn("Cloud Delete Warning:", e.message);
                 }
@@ -128,26 +133,16 @@
 
         async function initAuth() {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                await signInAnonymously(auth);
             } catch (err) {
-                console.warn("Auth Fallback:", err);
+                console.warn("Anonymous Auth Warning (직접 DB 접근 시도):", err.code);
+                subscribeToStudentCollection();
             }
         }
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 window.FB_SERVICE.currentUser = user;
-                const badge = document.getElementById('cloud-status-badge');
-                if (badge) {
-                    badge.innerHTML = `
-                        <i class="fa-solid fa-cloud-check text-emerald-400"></i>
-                        <span class="text-emerald-300">데이터 실시간 안전 보호 동기화됨</span>
-                    `;
-                }
                 subscribeToStudentCollection();
             } else {
                 initAuth();
@@ -163,25 +158,27 @@
                     cloudData.push(docSnap.data());
                 });
 
+                updateBadge('connected', `모든 기기 실시간 클라우드 동기화 연결됨 (${cloudData.length}명)`);
+
                 if (cloudData.length > 0) {
-                    window.studentData = cloudData;
+                    window.studentData = cloudData.sort((a, b) => (b.id || 0) - (a.id || 0));
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(window.studentData));
-                } else if (window.studentData && window.studentData.length > 0) {
+                } else if (!isInitialSnapshotReceived && window.studentData && window.studentData.length > 0) {
                     window.studentData.forEach(s => window.FB_SERVICE.saveStudentToCloud(s));
                 }
+                isInitialSnapshotReceived = true;
 
                 if (window.currentSystemMode === 'teacher') {
                     window.renderTeacherDashboard();
+                } else if (window.currentViewingStudent) {
+                    const updated = window.studentData.find(s => s.name === window.currentViewingStudent.name && s.grade === window.currentViewingStudent.grade);
+                    if (updated) {
+                        window.renderStudentDashboard(updated);
+                    }
                 }
             }, (error) => {
-                console.warn("Firestore Read Warning - Using Local Data:", error.message);
-                const badge = document.getElementById('cloud-status-badge');
-                if (badge) {
-                    badge.innerHTML = `
-                        <i class="fa-solid fa-hard-drive text-indigo-400"></i>
-                        <span class="text-indigo-300">내 브라우저 로컬 저장소 안전 작동 중</span>
-                    `;
-                }
+                console.error("Firestore Read Error:", error);
+                updateBadge('error', `클라우드 연결 오류 (${error.code}) - Firestore 규칙/설정 확인 필요`);
             });
         }
     </script>
@@ -408,9 +405,12 @@
             <div class="flex flex-wrap items-center justify-between bg-navy-900/80 p-3.5 rounded-2xl border border-indigo-900/60 text-xs gap-3">
                 <div class="flex items-center space-x-2 font-medium" id="cloud-status-badge">
                     <i class="fa-solid fa-spinner fa-spin text-indigo-400"></i>
-                    <span class="text-indigo-300">Google Firebase DB 연결 확인 중...</span>
+                    <span class="text-indigo-300">Firebase 클라우드(sea-patten) 연결 중...</span>
                 </div>
                 <div class="flex items-center space-x-2">
+                    <button onclick="forceSyncAllToCloud()" class="px-3 py-1.5 bg-emerald-700/80 hover:bg-emerald-600 border border-emerald-500/50 text-white rounded-xl font-bold transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> 현재 데이터 클라우드 강제 동기화
+                    </button>
                     <button onclick="exportDataJSON()" class="px-3 py-1.5 bg-navy-950 hover:bg-indigo-900/50 border border-indigo-800 text-slate-200 rounded-xl font-bold transition flex items-center gap-1.5">
                         <i class="fa-solid fa-download text-indigo-400"></i> 데이터 백업(JSON)
                     </button>
@@ -438,7 +438,7 @@
 
                 <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
                     <span id="teacher-student-count-badge">등록된 수강생: 0명</span>
-                    <span class="text-indigo-300 font-medium">* 음성 마이크 또는 사진 스캔으로 손쉽게 수강생 오답 노트를 입력 관리하세요.</span>
+                    <span class="text-indigo-300 font-medium">* 저장된 모든 데이터는 PC와 스마트폰, 학생 기기에 실시간으로 동일하게 반영됩니다.</span>
                 </div>
 
                 <div class="overflow-x-auto">
@@ -485,7 +485,6 @@
                     </button>
                 </div>
 
-                <!-- 음성 인식 원본 텍스트 확인 & 직접 수정 필드 추가 -->
                 <div id="voice-recognized-edit-box" class="hidden bg-navy-950 p-3.5 rounded-2xl border border-amber-500/40 space-y-2">
                     <div class="flex items-center justify-between">
                         <label class="font-bold text-amber-300 text-xs flex items-center gap-1">
@@ -507,7 +506,6 @@
                     <p class="text-slate-400 text-[10px]">사진 한 장 속 6개 이상의 회차 및 개별 문항 오답을 정밀 스캔합니다.</p>
                 </div>
 
-                <!-- 텍스트 일괄 파싱 보조 도구 추가 -->
                 <div class="bg-navy-950 p-3.5 rounded-2xl border border-indigo-900/60 space-y-2">
                     <div class="flex items-center justify-between">
                         <label class="font-bold text-indigo-300 text-xs flex items-center gap-1">
@@ -600,7 +598,7 @@
                 <div>
                     <label class="block font-bold text-slate-300 mb-1">Gemini API Key (선택)</label>
                     <input type="password" id="setting-gemini-key" placeholder="AI 비전 사진 스캔용 API Key" class="w-full px-3 py-2 bg-navy-950 text-slate-100 border border-indigo-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500">
-                    <p class="text-[10px] text-slate-400 mt-1">※ 입력된 수강생 정보는 Google Cloud DB에 자동 동기화됩니다.</p>
+                    <p class="text-[10px] text-emerald-400 mt-1">✓ Firebase 프로젝트(sea-patten)에 자동 실시간 동기화 중입니다.</p>
                 </div>
 
                 <div class="pt-2 border-t border-indigo-900/50 flex justify-between items-center">
@@ -625,6 +623,7 @@
         const SETTINGS_KEY = "seattle_english_settings_v3";
 
         window.currentSystemMode = 'student';
+        window.currentViewingStudent = null;
         let currentTeacherGradeFilter = 'all';
         let geminiApiKey = "";
         let currentEditingStudentId = null;
@@ -676,7 +675,7 @@
                     window.studentData = JSON.parse(saved);
                 } else {
                     window.studentData = [...initialDefaultStudents];
-                    saveDataToStorage(true);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(window.studentData));
                 }
             } catch (e) {
                 console.error("Storage load error", e);
@@ -705,6 +704,15 @@
             } catch (e) {
                 console.error("Storage save error", e);
             }
+        };
+
+        window.forceSyncAllToCloud = function() {
+            if (!window.studentData || window.studentData.length === 0) {
+                alert("동기화할 학생 데이터가 없습니다.");
+                return;
+            }
+            saveDataToStorage(true);
+            alert(`현재 화면의 ${window.studentData.length}명 학생 데이터를 클라우드(sea-patten)로 전송했습니다.`);
         };
 
         window.onload = function() {
@@ -801,11 +809,13 @@
         }
 
         function backToCheckin() {
+            window.currentViewingStudent = null;
             document.getElementById('student-dashboard').classList.add('hidden');
             document.getElementById('checkin-card').classList.remove('hidden');
         }
 
-        function renderStudentDashboard(student) {
+        window.renderStudentDashboard = function(student) {
+            window.currentViewingStudent = { name: student.name, grade: student.grade };
             document.getElementById('checkin-card').classList.add('hidden');
             document.getElementById('student-dashboard').classList.remove('hidden');
 
@@ -904,7 +914,7 @@
             } else {
                 historyContainer.innerHTML = `<p class="text-xs text-slate-400">응시한 모의고사 기록이 없습니다.</p>`;
             }
-        }
+        };
 
         window.renderTeacherDashboard = function() {
             let filtered = window.studentData;
@@ -992,7 +1002,7 @@
         }
 
         function deleteStudent(id) {
-            if (confirm("해당 학생의 모든 누적 모의고사 기록을 삭제하시겠습니까?")) {
+            if (confirm("해당 학생의 모든 누적 모의고사 기록을 삭제하시겠습니까? (모든 기기에서도 함께 삭제됩니다)")) {
                 window.studentData = window.studentData.filter(s => s.id !== id);
                 saveDataToStorage(false);
                 
@@ -1004,11 +1014,76 @@
             }
         }
 
+        function exportDataJSON() {
+            const dataStr = JSON.stringify(window.studentData, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `seattle_english_backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importDataJSON(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const imported = JSON.parse(evt.target.result);
+                    if (Array.isArray(imported)) {
+                        window.studentData = imported;
+                        saveDataToStorage(true);
+                        renderTeacherDashboard();
+                        alert(`${imported.length}명의 데이터를 성공적으로 복원하여 클라우드에 동기화했습니다!`);
+                    } else {
+                        alert("올바른 백업 파일 형식이 아닙니다.");
+                    }
+                } catch (err) {
+                    alert("파일을 읽는 중 오류가 발생했습니다.");
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = "";
+        }
+
+        function openSettingsModal() {
+            document.getElementById('settingsModal').classList.remove('hidden');
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        }
+
+        function saveSettings() {
+            const keyInput = document.getElementById('setting-gemini-key');
+            geminiApiKey = keyInput ? keyInput.value.trim() : "";
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify({ geminiApiKey }));
+            closeSettingsModal();
+            alert("설정이 저장되었습니다.");
+        }
+
+        function resetAllStudentData() {
+            if (confirm("정말로 모든 학생 데이터를 초기 상태로 되돌리시겠습니까?")) {
+                window.studentData.forEach(s => {
+                    if (window.FB_SERVICE && window.FB_SERVICE.deleteStudentFromCloud) {
+                        window.FB_SERVICE.deleteStudentFromCloud(s.id);
+                    }
+                });
+                window.studentData = [...initialDefaultStudents];
+                saveDataToStorage(true);
+                renderTeacherDashboard();
+                closeSettingsModal();
+                alert("초기화가 완료되었습니다.");
+            }
+        }
+
         function requestConsultation() {
             alert("1:1 맞춤 약점 클리닉 상담 예약이 접수되었습니다!\n원장 지남 선생님께서 직접 연락드립니다.\n(Seattle English Academy : 010-8921-7812)");
         }
 
-        // ENHANCED GEMINI 3.1 FLASH VISION FOR MULTI-EXAM RECOGNITION
+        // ENHANCED GEMINI VISION FOR MULTI-EXAM RECOGNITION
         async function processPhotoUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -1030,9 +1105,8 @@
                     }
                 }
 
-                // API Key가 없거나 실패 시 기본 멀티 파싱 룰백 적용
                 setTimeout(() => {
-                    document.getElementById('ocr-status-text').innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400"></i> 다중 6개 회차 자동 인식 완성`;
+                    document.getElementById('ocr-status-text').innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400"></i> 다중 6개 회차 자동 인식 완성 (API 키 설정 시 실제 사진 스캔 가능)`;
                     document.getElementById('ocr-student-name').value = "소연";
                     document.getElementById('ocr-student-grade').value = "g1";
 
@@ -1052,7 +1126,7 @@
         }
 
         async function callGeminiVisionAPI(base64Image, mimeType) {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${geminiApiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
             
             const prompt = `You are a high-precision OCR scanner for South Korean high school mock exam grade sheets and OMR records.
 Analyze this image thoroughly. It contains multiple exam records (sometimes 3, 5, 6, or more different tests listed in columns or rows).
@@ -1071,9 +1145,7 @@ Return strictly JSON with NO markdown formatting around JSON:
   "name": "Student Name",
   "grade": "g1",
   "exams": [
-    { "title": "2025년 3월 모의고사", "score": 85, "wrong": [31, 34, 37] },
-    { "title": "2024년 11월 모의고사", "score": 88, "wrong": [33, 38] },
-    { "title": "2024년 9월 모의고사", "score": 82, "wrong": [29, 31, 34, 39] }
+    { "title": "2025년 3월 모의고사", "score": 85, "wrong": [31, 34, 37] }
   ],
   "memo": "AI 다중 회차 통합 약점 분석 결과"
 }`;
@@ -1344,7 +1416,6 @@ Return strictly JSON with NO markdown formatting around JSON:
                 editInput.value = transcript;
             }
 
-            // 1. 학생 이름 파싱
             let parsedName = "";
             const names = ["수연", "나경", "소연", "민준", "지민", "서연", "하은", "도윤", "예준", "하준", "지유", "서준", "유진", "현우", "민서"];
             for (let name of names) {
@@ -1361,14 +1432,12 @@ Return strictly JSON with NO markdown formatting around JSON:
             }
             if (parsedName) document.getElementById('ocr-student-name').value = parsedName;
 
-            // 2. 학년 파싱
             let parsedGrade = "g1";
             if (transcript.includes("고3") || transcript.includes("3학년")) parsedGrade = "g3";
             else if (transcript.includes("고2") || transcript.includes("2학년")) parsedGrade = "g2";
             else if (transcript.includes("고1") || transcript.includes("1학년")) parsedGrade = "g1";
             document.getElementById('ocr-student-grade').value = parsedGrade;
 
-            // 3. 연도 및 월 파싱
             let year = "2025년";
             let month = "3월";
             const yearMatch = transcript.match(/(20\d{2}|\d{2})년/);
@@ -1378,27 +1447,22 @@ Return strictly JSON with NO markdown formatting around JSON:
             const monthMatch = transcript.match(/(\d{1,2})월/);
             if (monthMatch) month = `${monthMatch[1]}월`;
 
-            // 4. 점수 파싱
             let score = 85;
             const scoreMatch = transcript.match(/(\d{1,3})\s*점/);
             if (scoreMatch) score = parseInt(scoreMatch[1]);
 
-            // 5. 오답 번호 정밀 파싱 (1~45번 고등 모의고사 번호 범위 정확 추출)
             let wrongNums = [];
             const parsedMonthNum = monthMatch ? parseInt(monthMatch[1]) : null;
             
-            // 번호 패턴 인식 강화 (예: 31번, 34번 또는 31, 34, 37)
             const matches = transcript.matchAll(/(\d{1,2})\s*(번|번문항)?/g);
             for (const match of matches) {
                 const num = parseInt(match[1]);
-                // 모의고사 1~45번 범위 내 숫자 중 점수 및 월(Month)과 중복되지 않는 것 정밀 수집
                 if (num >= 1 && num <= 45 && num !== score && num !== parsedMonthNum) {
                     wrongNums.push(num);
                 }
             }
             wrongNums = [...new Set(wrongNums)].sort((a, b) => a - b);
 
-            // 기존 회차 목록 초기화 후 파싱된 정보 100% 반영
             const container = document.getElementById('ocr-exams-list-container');
             if (container) container.innerHTML = '';
 
@@ -1409,7 +1473,6 @@ Return strictly JSON with NO markdown formatting around JSON:
             };
             appendOcrExamRow(newExamData);
 
-            // 처방전 자동 반영
             const memoEl = document.getElementById('ocr-memo');
             let detailedAnalysis = "";
             if (wrongNums.length > 0) {
@@ -1428,8 +1491,6 @@ Return strictly JSON with NO markdown formatting around JSON:
             const editInput = document.getElementById('voice-transcript-edit-input');
             if (!editInput || !editInput.value.trim()) return;
             const normalizedText = koreanNumberToDigit(editInput.value.trim());
-            
-            // 수정된 음성 텍스트를 파서로 전달하여 회차 목록 및 입력 필드에 100% 정확히 재입력
             parseVoiceInputAndFill(normalizedText);
         }
 
@@ -1522,7 +1583,6 @@ Return strictly JSON with NO markdown formatting around JSON:
                 return;
             }
 
-            // 모달 내 회차 목록 읽기
             const examItems = document.querySelectorAll('.ocr-exam-item');
             const exams = [];
 
@@ -1532,7 +1592,6 @@ Return strictly JSON with NO markdown formatting around JSON:
                 const score = scoreVal !== "" && !isNaN(scoreVal) ? parseInt(scoreVal) : 80;
                 const wrongRaw = item.querySelector('.ocr-exam-wrong')?.value || "";
                 
-                // 틀린 번호 숫자 배열로 파싱 (1~45번)
                 const wrongNumbers = wrongRaw
                     .split(/[,;\s]+/)
                     .map(n => parseInt(n.replace(/[^0-9]/g, '')))
@@ -1550,7 +1609,6 @@ Return strictly JSON with NO markdown formatting around JSON:
             const gradeLabel = gradeLabelMap[grade] || '고1';
 
             if (currentEditingStudentId) {
-                // 기존 학생 데이터 수정 갱신
                 const studentIndex = window.studentData.findIndex(s => s.id === currentEditingStudentId);
                 if (studentIndex !== -1) {
                     window.studentData[studentIndex] = {
@@ -1563,17 +1621,14 @@ Return strictly JSON with NO markdown formatting around JSON:
                     };
                 }
             } else {
-                // 동일 학년 & 이름의 기존 학생이 존재하는지 확인
                 const existingIndex = window.studentData.findIndex(s => s.name === name && s.grade === grade);
                 if (existingIndex !== -1) {
-                    // 기존 동일 학생에 데이터 덮어쓰기/합치기
                     window.studentData[existingIndex] = {
                         ...window.studentData[existingIndex],
                         memo: memo,
                         exams: exams
                     };
                 } else {
-                    // 신규 학생 등록
                     const newStudent = {
                         id: Date.now(),
                         name: name,
@@ -1586,11 +1641,10 @@ Return strictly JSON with NO markdown formatting around JSON:
                 }
             }
 
-            // 저장 처리 및 클라우드 동기화
             saveDataToStorage(true);
             renderTeacherDashboard();
 
-            alert(`[${name}] 학생의 오답 분석 데이터가 성공적으로 저장되었습니다!`);
+            alert(`[${name}] 학생의 오답 분석 데이터가 저장되었으며 모든 기기에 실시간 동기화됩니다!`);
             closeImageUploadModal();
         }
 
@@ -1626,17 +1680,15 @@ Return strictly JSON with NO markdown formatting around JSON:
                 });
             });
 
-            // 가장 자주 틀린 번호 상위 3개
             const topWrongItems = Object.entries(itemCounts)
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 3)
                 .map(([num, count]) => `${num}번(${getItemType(num)}, ${count}회)`);
 
-            // 오답 비중이 높았던 영역
             const sortedDomains = Object.entries(domainCounts).sort((a, b) => b[1] - a[1]);
 
             let analysisText = `• [AI 누적 오답 패턴 정밀 분석]\n`;
-            analysisText += ` - 총 ${totalExams}개 회차 분석 결과, 약 점 감점 오답은 총 ${totalWrong}건 발생했습니다.\n`;
+            analysisText += ` - 총 ${totalExams}개 회차 분석 결과, 약점 감점 오답은 총 ${totalWrong}건 발생했습니다.\n`;
             if (topWrongItems.length > 0) {
                 analysisText += ` - 반복 감점 핵심 킬러 문항: ${topWrongItems.join(', ')}\n`;
             }
