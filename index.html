@@ -12,184 +12,472 @@
             theme: {
                 extend: {
                     colors: {
-                        brand: { 50: '#f0f3ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 900: '#1e1b4b', 950: '#0f0e26' },
-                        navy: { 800: '#1b1d36', 900: '#131427', 950: '#0b0c19' }
+                        brand: {
+                            50: '#f0f3ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#1e1b4b',
+                            950: '#0f0e26',
+                        },
+                        navy: {
+                            800: '#1b1d36',
+                            900: '#131427',
+                            950: '#0b0c19'
+                        }
                     }
                 }
             }
         }
     </script>
+    <!-- SheetJS & Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter / Noto Sans KR -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Noto Sans KR', sans-serif; background-color: #0b0c19; color: #f1f5f9; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #333660; border-radius: 4px; }
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #0b0c19;
+            color: #f1f5f9;
+        }
+        .light body {
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #333660;
+            border-radius: 4px;
+        }
         @keyframes pulse-ring {
             0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.7); }
             70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(225, 29, 72, 0); }
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(225, 29, 72, 0); }
         }
-        .recording-active { animation: pulse-ring 1.5s infinite; }
+        .recording-active {
+            animation: pulse-ring 1.5s infinite;
+        }
     </style>
 
+    <!-- Firebase SDK Modular Import (Multi-Device Real-Time Cloud Sync) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const defaultAppId = 'seattle-english-app';
-        const firebaseConfig = {
-            apiKey: "AIzaSyAWDVumJr03-BKDDrGwr5qVhjwav3j6Ov0",
-            authDomain: "sea-patten.firebaseapp.com",
-            projectId: "sea-patten",
-            storageBucket: "sea-patten.firebasestorage.app",
-            messagingSenderId: "417786307737",
-            appId: "1:417786307737:web:dabf32b578e4e0f59e0408"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        function updateBadge(status, text) {
-            const badge = document.getElementById('cloud-status-badge');
-            if (!badge) return;
-            if (status === 'connected') {
-                badge.innerHTML = `<i class="fa-solid fa-cloud-check text-emerald-400"></i> <span class="text-emerald-300">${text}</span>`;
-            } else if (status === 'syncing') {
-                badge.innerHTML = `<i class="fa-solid fa-arrows-rotate fa-spin text-indigo-400"></i> <span class="text-indigo-300">${text}</span>`;
-            } else {
-                badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-400"></i> <span class="text-amber-300">${text}</span>`;
+        const defaultAppId = typeof __app_id !== 'undefined' ? __app_id : 'seattle-english-pattern-v1';
+        let customFbConfig = null;
+        try {
+            const savedSettings = JSON.parse(localStorage.getItem("seattle_english_settings_v3") || "{}");
+            if (savedSettings.customFirebaseConfig) {
+                customFbConfig = JSON.parse(savedSettings.customFirebaseConfig);
             }
+        } catch (e) {
+            console.warn("Custom Firebase Config parse error:", e);
         }
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : customFbConfig;
 
         window.FB_SERVICE = {
-            db: db, auth: auth, appId: defaultAppId,
+            isConnected: false,
+            db: null,
+            auth: null,
+            appId: defaultAppId,
+            currentUser: null,
+
             async saveStudentToCloud(studentObj) {
+                if (!this.isConnected || !this.db || !this.currentUser) return false;
                 try {
-                    const docRef = doc(db, 'artifacts', defaultAppId, 'public', 'data', 'students', String(studentObj.id));
+                    const docId = String(studentObj.id);
+                    const docRef = doc(this.db, 'artifacts', this.appId, 'public', 'data', 'students', docId);
                     await setDoc(docRef, studentObj, { merge: true });
-                } catch (e) { console.error(e); }
+                    this.updateBadge('connected', '모든 기기 실시간 클라우드 동기화 완료');
+                    return true;
+                } catch (e) {
+                    console.warn("Cloud Save Error:", e.message);
+                    this.updateBadge('error', '클라우드 저장 오류 (로컬 백업 유지됨)');
+                    return false;
+                }
             },
+
             async deleteStudentFromCloud(docId) {
+                if (!this.isConnected || !this.db || !this.currentUser) return;
                 try {
-                    await deleteDoc(doc(db, 'artifacts', defaultAppId, 'public', 'data', 'students', String(docId)));
-                } catch (e) {}
+                    const docRef = doc(this.db, 'artifacts', this.appId, 'public', 'data', 'students', String(docId));
+                    await deleteDoc(docRef);
+                } catch (e) {
+                    console.warn("Cloud Delete Error:", e.message);
+                }
+            },
+
+            updateBadge(status, text) {
+                const badge = document.getElementById('cloud-status-badge');
+                if (!badge) return;
+                if (status === 'connected') {
+                    badge.innerHTML = `<i class="fa-solid fa-cloud-check text-emerald-400"></i><span class="text-emerald-300 font-bold">${text}</span>`;
+                } else if (status === 'warning') {
+                    badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-400"></i><span class="text-amber-300 font-bold">${text}</span>`;
+                } else {
+                    badge.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-400"></i><span class="text-rose-300 font-bold">${text}</span>`;
+                }
             }
         };
 
-        async function initAuth() {
-            try { await signInAnonymously(auth); } catch (e) { subscribeToStudentCollection(); }
+        if (firebaseConfig && firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("Placeholder")) {
+            try {
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
+                window.FB_SERVICE.db = db;
+                window.FB_SERVICE.auth = auth;
+
+                const initAuth = async () => {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                };
+
+                await initAuth();
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        window.FB_SERVICE.currentUser = user;
+                        window.FB_SERVICE.isConnected = true;
+                        window.FB_SERVICE.updateBadge('connected', '실시간 클라우드 DB 연결됨 (모든 기기 동일 데이터)');
+                        subscribeToStudentCollection(db, defaultAppId);
+                    }
+                });
+            } catch (err) {
+                console.error("Firebase Init Error:", err);
+                window.FB_SERVICE.updateBadge('error', '클라우드 설정 오류');
+            }
+        } else {
+            window.FB_SERVICE.updateBadge('warning', '현재 기기 전용 모드 (우측 상단 톱니바퀴에서 클라우드 연결 가능)');
         }
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) { subscribeToStudentCollection(); } else { initAuth(); }
-        });
-
-        function subscribeToStudentCollection() {
-            const colRef = collection(db, 'artifacts', defaultAppId, 'public', 'data', 'students');
+        function subscribeToStudentCollection(db, appId) {
+            const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
+            
             onSnapshot(colRef, (snapshot) => {
                 const cloudData = [];
-                snapshot.forEach((docSnap) => { cloudData.push(docSnap.data()); });
+                snapshot.forEach((docSnap) => {
+                    cloudData.push(docSnap.data());
+                });
 
                 if (cloudData.length > 0) {
-                    window.studentData = cloudData.sort((a, b) => (b.id || 0) - (a.id || 0));
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(window.studentData));
+                    cloudData.sort((a, b) => (b.id || 0) - (a.id || 0));
+                    window.studentData = cloudData;
+                    localStorage.setItem("seattle_english_student_data_v3", JSON.stringify(window.studentData));
                 } else if (window.studentData && window.studentData.length > 0) {
                     window.studentData.forEach(s => window.FB_SERVICE.saveStudentToCloud(s));
                 }
 
-                updateBadge('connected', `클라우드 동기화 완료 (${window.studentData.length}명)`);
-                if (window.currentSystemMode === 'teacher') {
+                if (window.currentSystemMode === 'teacher' && window.renderTeacherDashboard) {
                     window.renderTeacherDashboard();
                 }
             }, (error) => {
-                updateBadge('error', `클라우드 연결 오류`);
+                console.warn("Firestore Sync Error:", error.message);
+                window.FB_SERVICE.updateBadge('error', '클라우드 동기화 권한 오류');
             });
         }
     </script>
 </head>
 <body class="min-h-screen flex flex-col transition-colors duration-300">
+
+    <!-- Custom Notification Toast -->
+    <div id="custom-toast" class="fixed bottom-6 right-6 z-[100] hidden transform transition-all duration-300 translate-y-4 opacity-0">
+        <div class="bg-navy-900 border border-indigo-500/60 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center space-x-3 max-w-md">
+            <i id="toast-icon" class="fa-solid fa-circle-info text-indigo-400 text-lg"></i>
+            <p id="toast-message" class="text-xs font-medium leading-relaxed"></p>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="custom-confirm-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
+        <div class="bg-navy-900 border border-rose-500/50 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <div class="flex items-center space-x-3 text-rose-400">
+                <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                <h4 class="font-bold text-sm text-white">확인 요청</h4>
+            </div>
+            <p id="confirm-message" class="text-xs text-slate-300 leading-relaxed"></p>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button id="confirm-cancel-btn" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-navy-950 transition">취소</button>
+                <button id="confirm-ok-btn" class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition shadow">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header Navigation Bar -->
     <header class="bg-navy-900 border-b border-indigo-900/40 text-white sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+            
+            <!-- Academy Branding -->
             <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center shadow-lg text-white text-xl">
                     <i class="fa-solid fa-school-flag"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-extrabold tracking-tight text-white">Seattle English Academy</h1>
+                    <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                        Seattle English Academy
+                    </h1>
                     <p class="text-[11px] text-indigo-300/80">고등 영어 모의고사 누적 오답 분석 & 1:1 전략 지도 포털</p>
                 </div>
             </div>
+
+            <!-- Mode Switcher & Controls -->
             <div class="flex items-center space-x-3">
                 <div class="bg-navy-950 p-1 rounded-2xl border border-indigo-900/80 flex items-center space-x-1">
-                    <button onclick="switchMode('student')" id="btn-mode-student" class="px-3 py-1.5 rounded-xl text-xs font-bold transition bg-indigo-600 text-white shadow-md flex items-center gap-1.5"><i class="fa-solid fa-user-graduate"></i> 학생 모드</button>
-                    <button onclick="switchMode('teacher')" id="btn-mode-teacher" class="px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5"><i class="fa-solid fa-chalkboard-user text-purple-400"></i> 선생님 모드</button>
+                    <button onclick="switchMode('student')" id="btn-mode-student" class="px-3 py-1.5 rounded-xl text-xs font-bold transition bg-indigo-600 text-white shadow-md flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-graduate"></i> 학생 모드
+                    </button>
+                    <button onclick="switchMode('teacher')" id="btn-mode-teacher" class="px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-chalkboard-user text-purple-400"></i> 선생님 모드
+                    </button>
                 </div>
+
                 <a href="tel:010-8921-7812" class="hidden sm:flex items-center space-x-2 text-rose-400 hover:text-rose-300 transition text-sm font-bold bg-navy-800/80 px-3 py-1.5 rounded-xl border border-rose-500/20">
                     <i class="fa-solid fa-phone"></i>
                     <span>원장 지남 <span class="text-white font-normal ml-1">010-8921-7812</span></span>
                 </a>
+
+                <button onclick="toggleDarkMode()" id="theme-toggle-btn" class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition flex items-center justify-center border border-amber-500/30">
+                    <i class="fa-solid fa-sun text-sm" id="theme-icon"></i>
+                </button>
             </div>
         </div>
     </header>
 
+    <!-- Main Content Container -->
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
         <!-- VIEW 1: STUDENT VIEW -->
-        <div id="view-student-portal" class="space-y-6 hidden">
-            <div id="checkin-card" class="max-w-2xl mx-auto bg-navy-900/90 rounded-3xl border border-indigo-900/60 p-6 sm:p-8 shadow-2xl">
-                <h2 class="text-xl font-black text-white mb-2"><i class="fa-solid fa-chart-line text-indigo-400"></i> 학생 성적 분석과 대비책</h2>
+        <div id="view-student-portal" class="space-y-6">
+            
+            <!-- Check-in Box -->
+            <div id="checkin-card" class="max-w-2xl mx-auto bg-navy-900/90 rounded-3xl border border-indigo-900/60 p-6 sm:p-8 shadow-2xl backdrop-blur-md">
+                <div class="space-y-2 mb-6">
+                    <h2 class="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-indigo-400"></i> 학생 성적 분석과 대비책
+                    </h2>
+                    <p class="text-xs text-indigo-200/70">본인의 학년과 이름을 입력하면 수년간의 누적 모의고사 오답 분석 및 1:1 약점 대비책을 확인하실 수 있습니다.</p>
+                </div>
+
                 <form onsubmit="handleStudentCheckin(event)" class="space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <select id="checkin-grade" required class="w-full px-4 py-3 text-sm bg-navy-950 border border-indigo-800 rounded-2xl text-slate-100">
-                            <option value="">-- 학년 선택 --</option>
-                            <option value="g1">고1</option><option value="g2">고2</option><option value="g3">고3</option>
-                        </select>
-                        <input type="text" id="checkin-name" required placeholder="이름 입력" class="w-full px-4 py-3 text-sm bg-navy-950 border border-indigo-800 rounded-2xl text-slate-100">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-300 mb-2">학년 선택</label>
+                            <select id="checkin-grade" required class="w-full px-4 py-3 text-sm bg-navy-950 border border-indigo-800/80 rounded-2xl text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="">-- 학년 선택 --</option>
+                                <option value="g1">고1</option>
+                                <option value="g2">고2</option>
+                                <option value="g3">고3</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-300 mb-2">학생 이름 입력</label>
+                            <input type="text" id="checkin-name" required placeholder="이름 입력 (예: 수연, 나경, 소연)" class="w-full px-4 py-3 text-sm bg-navy-950 border border-indigo-800/80 rounded-2xl text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
                     </div>
-                    <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold">조회하기</button>
+
+                    <div class="flex items-center justify-end pt-2">
+                        <button type="submit" class="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-2xl text-sm font-bold transition shadow-lg flex items-center justify-center gap-2">
+                            <span>누적 오답 분석 조회하기</span>
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
                 </form>
             </div>
+
+            <!-- Student Dashboard View (Initially Hidden) -->
             <div id="student-dashboard" class="hidden space-y-6">
-                <div class="bg-navy-900 rounded-3xl border border-indigo-800 p-6 flex justify-between items-center">
-                    <div>
-                        <h2 class="text-2xl font-black text-white" id="display-student-name"></h2>
-                        <button onclick="backToCheckin()" class="text-xs text-slate-400 mt-1"><i class="fa-solid fa-rotate-left"></i> 다른 학생 조회</button>
+                <!-- Welcome Banner -->
+                <div class="bg-gradient-to-r from-navy-900 via-indigo-950 to-navy-900 rounded-3xl border border-indigo-800/60 p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl">
+                    <div class="space-y-2">
+                        <div class="flex items-center space-x-3">
+                            <span id="display-student-grade" class="px-3 py-1 bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 text-xs font-bold rounded-full">고1</span>
+                            <h2 class="text-2xl sm:text-3xl font-black text-white" id="display-student-name">학생 이름</h2>
+                            <button onclick="backToCheckin()" class="ml-2 text-xs bg-navy-950 px-2.5 py-1 rounded-lg border border-indigo-800 text-slate-400 hover:text-white transition"><i class="fa-solid fa-rotate-left mr-1"></i>다른 학생 조회</button>
+                        </div>
+                        <p class="text-xs text-indigo-200/80">Seattle English Academy 수년간 누적 모의고사 분석 & 약점 집중 처방 리포트</p>
+                    </div>
+
+                    <div class="flex items-center space-x-4 bg-navy-950/80 p-4 rounded-2xl border border-indigo-900/80">
+                        <div class="text-center px-4">
+                            <p class="text-[10px] text-indigo-300 uppercase font-semibold">총 누적 응시</p>
+                            <p class="text-2xl font-black text-indigo-400" id="display-student-exam-count">0회</p>
+                        </div>
+                        <div class="w-px h-10 bg-indigo-900/80"></div>
+                        <div class="text-center px-4">
+                            <p class="text-[10px] text-emerald-300 uppercase font-semibold">평균 원점수</p>
+                            <p class="text-2xl font-black text-emerald-400" id="display-student-avg-score">0점</p>
+                        </div>
                     </div>
                 </div>
-                <div class="bg-navy-900 rounded-3xl border border-indigo-900 p-6" id="student-display-memo"></div>
+
+                <!-- Infographics -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                                <i class="fa-solid fa-fire text-rose-500"></i> 가장 자주 틀린 번호 Top 5
+                            </h3>
+                            <span class="text-xs text-indigo-300">반복 감점 킬러 번호</span>
+                        </div>
+                        <div id="student-accumulated-wrong-items" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2"></div>
+                    </div>
+
+                    <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4 flex flex-col justify-between">
+                        <div>
+                            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                                <i class="fa-solid fa-chart-pie text-purple-400"></i> 약점 오답 유형 비중
+                            </h3>
+                            <p class="text-[11px] text-slate-400 mt-1">지속적으로 점수를 갉아먹는 핵심 고난도 유형</p>
+                        </div>
+                        <div id="domain-summary-list" class="space-y-2.5 my-2"></div>
+                        <div class="p-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-[11px] text-rose-300 font-medium">
+                            <i class="fa-solid fa-triangle-exclamation mr-1"></i> 상위 등급 진입을 위해 31~34번(빈칸) 및 36~39번(순서/삽입) 집중 보완이 시급합니다.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategic Action Plan -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-3">
+                        <h3 class="font-bold text-sm text-amber-400 flex items-center gap-2">
+                            <i class="fa-solid fa-compass"></i> 원장 지남 선생님의 약점 분석 및 처방전 (Action Plan)
+                        </h3>
+                        <div id="student-display-memo" class="text-xs text-slate-200 leading-relaxed bg-navy-950 p-4 rounded-2xl border border-indigo-950 min-h-[120px] whitespace-pre-line">-</div>
+                    </div>
+
+                    <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-3 flex flex-col justify-between">
+                        <div>
+                            <h3 class="font-bold text-sm text-indigo-400 flex items-center gap-2">
+                                <i class="fa-solid fa-comments"></i> 약점 클리닉 1:1 상담 연결
+                            </h3>
+                            <p class="text-xs text-indigo-200/80 mt-2 leading-relaxed">
+                                분석된 누적 오답 데이터를 기반으로 학생의 학습 방향을 점검하고, 맞춤형 변형 문제집 및 1:1 지도 클리닉을 예약합니다.
+                            </p>
+                        </div>
+                        <div class="pt-4 flex flex-wrap gap-3">
+                            <a href="tel:010-8921-7812" class="flex-1 min-w-[140px] py-3.5 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-xs font-bold transition text-center shadow-md flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-phone"></i> 전화 상담 (010-8921-7812)
+                            </a>
+                            <button onclick="requestConsultation()" class="flex-1 min-w-[140px] py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-bold transition text-center shadow-md flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-calendar-check"></i> 1:1 상담 예약
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Exam History -->
+                <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4">
+                    <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-indigo-400"></i> 응시한 모든 모의고사 세부 기록
+                    </h3>
+                    <div id="student-exams-history-list" class="space-y-3"></div>
+                </div>
             </div>
         </div>
 
-        <!-- VIEW 2: TEACHER VIEW -->
-        <div id="view-teacher-portal" class="space-y-6">
+        <!-- VIEW 2: TEACHER MANAGEMENT VIEW -->
+        <div id="view-teacher-portal" class="hidden space-y-6">
+            <!-- Header Banner -->
             <div class="bg-gradient-to-r from-purple-950 via-indigo-950 to-navy-900 rounded-3xl border border-purple-500/40 p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-5">
-                <div class="space-y-1">
-                    <h3 class="text-xl font-black text-white">오답/패턴 데이터 사진 스캔 & 스마트 음성 즉시 등록</h3>
-                    <p class="text-xs text-purple-200/80">사진 스캔 및 음성 마이크로 오답 기록을 등록하세요.</p>
+                <div class="space-y-1 text-center md:text-left">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-full text-xs font-bold">
+                        <i class="fa-solid fa-user-shield"></i> 원장 지남 선생님 전용 데이터 통합 관리자
+                    </div>
+                    <h3 class="text-xl font-black text-white">
+                        오답/패턴 데이터 사진 스캔 & 스마트 음성 즉시 등록
+                    </h3>
+                    <p class="text-xs text-purple-200/80">
+                        사진 스캔(Gemini AI Vision) 및 정밀 한국어 음성 마이크로 오답 기록을 등록하세요.
+                    </p>
                 </div>
-                <div class="flex items-center gap-2">
-                    <button onclick="openImageUploadModal()" class="px-5 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-2xl shadow-xl flex items-center gap-2">
-                        <i class="fa-solid fa-camera"></i> 회차 스캔 & 등록
+                <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-center">
+                    <button onclick="startVoiceRegistration()" id="voice-main-btn" class="px-4 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 transition active:scale-95 whitespace-nowrap">
+                        <i class="fa-solid fa-microphone text-sm"></i>
+                        <span>음성 마이크 입력</span>
+                    </button>
+                    <button onclick="openImageUploadModal()" class="px-5 py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white font-bold text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 transition active:scale-95 whitespace-nowrap">
+                        <i class="fa-solid fa-camera text-sm"></i>
+                        <span>다중 회차 사진 스캔</span>
+                    </button>
+                    <button onclick="openSettingsModal()" class="px-3.5 py-3 bg-indigo-600 hover:bg-indigo-500 border border-indigo-400/50 text-white rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg" title="다기기 동기화 및 AI 설정">
+                        <i class="fa-solid fa-cloud text-sm"></i>
+                        <span>클라우드 동기화 설정</span>
                     </button>
                 </div>
             </div>
 
-            <div class="flex items-center justify-between bg-navy-900/80 p-3.5 rounded-2xl border border-indigo-900/60 text-xs">
-                <div id="cloud-status-badge" class="text-indigo-300">클라우드 연결 중...</div>
-                <div class="flex items-center gap-2">
-                    <button onclick="forceSyncAllToCloud()" class="px-3 py-1.5 bg-emerald-700 text-white rounded-xl font-bold">강제 동기화</button>
-                    <button onclick="exportDataJSON()" class="px-3 py-1.5 bg-navy-950 text-slate-200 rounded-xl font-bold">데이터 백업(JSON)</button>
-                    <button onclick="document.getElementById('importFileInput').click()" class="px-3 py-1.5 bg-navy-950 text-slate-200 rounded-xl font-bold">데이터 복원</button>
+            <!-- Voice Live Status Bar -->
+            <div id="voice-live-status" class="hidden bg-rose-950/80 border border-rose-500/50 rounded-2xl p-4 flex items-center justify-between text-xs text-rose-200 shadow-xl backdrop-blur-md">
+                <div class="flex items-center space-x-3 w-full mr-3">
+                    <span class="w-3 h-3 rounded-full bg-rose-500 recording-active shrink-0"></span>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-bold text-white flex items-center gap-1.5">
+                            실시간 고정밀 음성 인식 중... (말씀하신 뒤 완료 버튼을 누르세요)
+                        </p>
+                        <p id="voice-transcript-preview" class="text-xs text-amber-300 font-medium truncate mt-0.5 bg-black/40 px-2 py-1 rounded-lg border border-amber-500/30">"말씀하시는 내용이 여기에 표시됩니다..."</p>
+                    </div>
+                </div>
+                <button onclick="stopVoiceRegistration(true)" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs shrink-0 shadow">말하기 완료 및 수정하기</button>
+            </div>
+
+            <!-- Cloud Status Bar & Data Controls -->
+            <div class="flex flex-wrap items-center justify-between bg-navy-900/80 p-3.5 rounded-2xl border border-indigo-900/60 text-xs gap-3">
+                <div class="flex items-center space-x-2 font-medium" id="cloud-status-badge">
+                    <i class="fa-solid fa-spinner fa-spin text-indigo-400"></i>
+                    <span class="text-indigo-300">클라우드 DB 연결 확인 중...</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <button onclick="copyShareSyncLink()" class="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/50 text-emerald-300 rounded-xl font-bold transition flex items-center gap-1.5" title="현재 데이터를 다른 기기로 즉시 옮길 수 있는 링크를 복사합니다">
+                        <i class="fa-solid fa-share-nodes"></i> 다른 기기로 데이터 바로 전송(링크 복사)
+                    </button>
+                    <button onclick="exportDataJSON()" class="px-3 py-1.5 bg-navy-950 hover:bg-indigo-900/50 border border-indigo-800 text-slate-200 rounded-xl font-bold transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-download text-indigo-400"></i> 백업(JSON)
+                    </button>
+                    <button onclick="document.getElementById('importFileInput').click()" class="px-3 py-1.5 bg-navy-950 hover:bg-indigo-900/50 border border-indigo-800 text-slate-200 rounded-xl font-bold transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-upload text-purple-400"></i> 복원
+                    </button>
                     <input type="file" id="importFileInput" accept=".json" onchange="importDataJSON(event)" class="hidden">
                 </div>
             </div>
 
+            <!-- Student List Table -->
             <div class="bg-navy-900 rounded-3xl border border-indigo-900/60 p-6 shadow-xl space-y-4">
-                <h3 class="font-bold text-sm text-white"><i class="fa-solid fa-users text-purple-400"></i> 수강생 누적 오답 데이터 관리</h3>
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                        <i class="fa-solid fa-users text-purple-400"></i> 수강생 누적 오답 데이터 관리
+                    </h3>
+                    
+                    <div class="flex items-center space-x-1 bg-navy-950 p-1 rounded-2xl border border-indigo-900/80">
+                        <button onclick="filterTeacherGrade('all')" id="btn-grade-all" class="px-3 py-1.5 rounded-xl text-xs font-bold transition bg-purple-600 text-white shadow">전체</button>
+                        <button onclick="filterTeacherGrade('g1')" id="btn-grade-g1" class="px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white">고1</button>
+                        <button onclick="filterTeacherGrade('g2')" id="btn-grade-g2" class="px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white">고2</button>
+                        <button onclick="filterTeacherGrade('g3')" id="btn-grade-g3" class="px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white">고3</button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+                    <span id="teacher-student-count-badge">등록된 수강생: 0명</span>
+                    <span class="text-indigo-300 font-medium">* 음성 마이크 또는 사진 스캔으로 손쉽게 수강생 오답 노트를 입력 관리하세요.</span>
+                </div>
+
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs text-slate-300 border-collapse">
                         <thead>
@@ -198,6 +486,7 @@
                                 <th class="p-3 font-bold">학생 이름</th>
                                 <th class="p-3 font-bold">응시 횟수</th>
                                 <th class="p-3 font-bold">평균 점수</th>
+                                <th class="p-3 font-bold">최다 오답 번호</th>
                                 <th class="p-3 font-bold text-center">관리 / 리포트 보기</th>
                             </tr>
                         </thead>
@@ -206,176 +495,670 @@
                 </div>
             </div>
         </div>
+
     </main>
 
-    <!-- Modal -->
-    <div id="imageUploadModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-navy-900 rounded-3xl w-full max-w-xl p-6 space-y-4 border border-purple-500">
-            <h3 class="font-bold text-white text-sm">학생 오답 등록 및 수정</h3>
-            <input type="text" id="ocr-student-name" placeholder="학생 이름" class="w-full px-3 py-2 bg-navy-950 text-white border border-indigo-800 rounded-xl">
-            <select id="ocr-student-grade" class="w-full px-3 py-2 bg-navy-950 text-white border border-indigo-800 rounded-xl">
-                <option value="g1">고1</option><option value="g2">고2</option><option value="g3">고3</option>
-            </select>
-            <textarea id="ocr-memo" rows="3" placeholder="메모 및 처방전" class="w-full px-3 py-2 bg-navy-950 text-white border border-indigo-800 rounded-xl"></textarea>
-            <div class="flex justify-end gap-2">
-                <button onclick="closeImageUploadModal()" class="px-4 py-2 text-slate-400">취소</button>
-                <button onclick="saveOcrResult()" class="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold">저장</button>
+    <!-- Modal: Image/Photo OCR & Voice Modal -->
+    <div id="imageUploadModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-navy-900 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-purple-500/50 max-h-[90vh] flex flex-col">
+            <div class="bg-navy-950 px-6 py-4 flex justify-between items-center border-b border-purple-900/50 shrink-0">
+                <h3 class="font-bold text-sm text-white flex items-center gap-2" id="modal-title-heading">
+                    <i class="fa-solid fa-camera text-purple-400"></i> 오답/패턴 다중 회차 스캔 & 입력
+                </h3>
+                <button onclick="closeImageUploadModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <div class="p-6 space-y-5 text-xs overflow-y-auto custom-scrollbar">
+                
+                <div class="bg-gradient-to-r from-rose-950/60 to-purple-950/60 border border-rose-500/30 p-4 rounded-2xl flex items-center justify-between">
+                    <div>
+                        <p class="font-bold text-rose-300 text-xs flex items-center gap-1.5">
+                            <i class="fa-solid fa-microphone"></i> 음성으로 즉시 말해서 채우기
+                        </p>
+                        <p class="text-[11px] text-slate-300 mt-0.5">예: "고1 소연 2025년 3월 모의고사 85점 틀린 번호 31번 34번 37번"</p>
+                    </div>
+                    <button type="button" onclick="startVoiceRegistrationInModal()" id="btn-modal-mic" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl shadow transition flex items-center gap-1.5 whitespace-nowrap">
+                        <i class="fa-solid fa-microphone"></i> 말하기 시작
+                    </button>
+                </div>
+
+                <div id="voice-recognized-edit-box" class="hidden bg-navy-950 p-3.5 rounded-2xl border border-amber-500/40 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="font-bold text-amber-300 text-xs flex items-center gap-1">
+                            <i class="fa-solid fa-pen-to-square"></i> 최근 음성 인식 원본 텍스트 (오인식 시 직접 수정 가능)
+                        </label>
+                        <button type="button" onclick="reparseVoiceText()" class="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[11px] font-bold transition">
+                            <i class="fa-solid fa-rotate-right mr-1"></i>수정 내용 재분석 적용
+                        </button>
+                    </div>
+                    <input type="text" id="voice-transcript-edit-input" class="w-full px-3 py-2 bg-navy-900 text-amber-200 border border-amber-500/30 rounded-xl text-xs font-medium focus:outline-none focus:border-amber-400" placeholder="인식된 텍스트가 여기에 나타나며 직접 수정할 수 있습니다.">
+                </div>
+
+                <div onclick="document.getElementById('photoFileInput').click()" class="border-2 border-dashed border-purple-500/40 hover:border-purple-400 bg-purple-950/20 hover:bg-purple-950/40 p-5 rounded-2xl text-center cursor-pointer transition space-y-2">
+                    <input type="file" id="photoFileInput" accept="image/*" capture="environment" onchange="processPhotoUpload(event)" class="hidden">
+                    <div class="w-10 h-10 rounded-2xl bg-purple-600/20 text-purple-300 border border-purple-500/30 mx-auto flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                    </div>
+                    <p class="font-bold text-white text-xs">다중 시험 성적표 / 표 사진 첨부 (Gemini AI Vision)</p>
+                    <p class="text-slate-400 text-[10px]">사진 한 장 속 6개 이상의 회차 및 개별 문항 오답을 정밀 스캔합니다.</p>
+                </div>
+
+                <div class="bg-navy-950 p-3.5 rounded-2xl border border-indigo-900/60 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="font-bold text-indigo-300 text-xs flex items-center gap-1">
+                            <i class="fa-solid fa-paste"></i> 텍스트 복사-붙여넣기 빠른 자동 분할
+                        </label>
+                        <button type="button" onclick="parseTextBatch()" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-bold">
+                            AI 자동 분할 적용
+                        </button>
+                    </div>
+                    <textarea id="raw-batch-text" rows="2" class="w-full px-3 py-2 bg-navy-900 text-slate-200 border border-indigo-900 rounded-xl text-xs focus:outline-none focus:border-indigo-500" placeholder="성적표나 엑셀 텍스트를 통째로 붙여넣으세요. (예: 2025 3월 85점 31, 34, 37 / 2024 11월 79점 31, 32, 38)"></textarea>
+                </div>
+
+                <div id="ocr-preview-area" class="space-y-4 border-t border-indigo-900/50 pt-4">
+                    <div id="image-preview-container" class="hidden flex items-center space-x-3 bg-navy-950 p-3 rounded-2xl border border-indigo-900/60">
+                        <img id="image-preview" src="#" alt="미리보기" class="w-14 h-14 object-cover rounded-xl border border-indigo-800">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-emerald-400 font-bold flex items-center gap-1 text-xs" id="ocr-status-text">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> AI 이미지 분석 준비 완료
+                            </p>
+                            <p class="text-slate-300 text-[11px] truncate mt-0.5" id="image-filename">cumulative_pattern_analysis.jpg</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">학생 이름 *</label>
+                            <input type="text" id="ocr-student-name" placeholder="예: 소연, 나경, 수연" class="w-full px-3 py-2 bg-navy-950 text-slate-100 border border-indigo-900 rounded-xl font-bold">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">현재 학년 *</label>
+                            <select id="ocr-student-grade" class="w-full px-3 py-2 bg-navy-950 text-slate-100 border border-indigo-900 rounded-xl font-bold">
+                                <option value="g1">고1</option>
+                                <option value="g2">고2</option>
+                                <option value="g3">고3</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 bg-navy-950 p-4 rounded-2xl border border-indigo-900/80">
+                        <div class="flex items-center justify-between">
+                            <label class="block font-bold text-indigo-300 text-xs">
+                                <i class="fa-solid fa-layer-group mr-1"></i> 감지된 전체 모의고사 회차 목록
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="autoAnalyzePatternAndFillMemo()" class="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-[10px] font-bold shadow transition flex items-center gap-1">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI 오답 패턴 처방 생성
+                                </button>
+                                <button type="button" onclick="addOcrExamRow()" class="px-2.5 py-1 bg-indigo-600/40 hover:bg-indigo-600 text-indigo-200 border border-indigo-500/40 rounded-lg text-[10px] font-bold transition">
+                                    + 회차 직접 추가
+                                </button>
+                            </div>
+                        </div>
+                        <div id="ocr-exams-list-container" class="space-y-2 max-h-[260px] overflow-y-auto custom-scrollbar pr-1"></div>
+                    </div>
+
+                    <div class="space-y-2 bg-navy-950 p-4 rounded-2xl border border-indigo-900/80">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block font-bold text-amber-400 text-xs flex items-center gap-1">
+                                <i class="fa-solid fa-brain"></i> 원장님 통합 약점 분석 및 처방전 (Action Plan)
+                            </label>
+                            <button type="button" onclick="autoAnalyzePatternAndFillMemo()" class="text-[11px] text-amber-300 hover:text-amber-200 font-bold flex items-center gap-1 bg-amber-500/20 px-2 py-0.5 rounded-md border border-amber-500/30">
+                                <i class="fa-solid fa-rotate-right"></i> 패턴 다시 분석
+                            </button>
+                        </div>
+                        <textarea id="ocr-memo" rows="4" class="w-full px-3 py-2 bg-navy-900 text-slate-100 border border-indigo-800 rounded-xl text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-amber-500" placeholder="위 회차 데이터를 기반으로 AI가 감지한 종합 학습 처방전이 여기에 자동으로 작성됩니다."></textarea>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closeImageUploadModal()" class="px-4 py-2 rounded-xl text-slate-400 hover:bg-navy-950">취소</button>
+                    <button type="button" id="ocr-save-btn" onclick="saveOcrResult()" class="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold shadow-lg flex items-center gap-2">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> 저장 및 모든 기기 동기화
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Modal: Settings, Cloud Sync & Gemini API Key -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-navy-900 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-indigo-500/50 p-6 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="flex justify-between items-center border-b border-indigo-900/60 pb-3">
+                <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                    <i class="fa-solid fa-cloud-arrow-up text-indigo-400"></i> 다기기 실시간 클라우드 동기화 & AI 설정
+                </h3>
+                <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="space-y-4 text-xs">
+                <div class="bg-indigo-950/50 border border-indigo-500/40 p-4 rounded-2xl space-y-2.5">
+                    <h4 class="font-bold text-indigo-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-globe"></i> 어느 기기에서나 같은 데이터 보기 (Firebase 실시간 DB 연결)
+                    </h4>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">
+                        GitHub Pages(<code class="text-amber-300">realtorgi.github.io</code>)에서 PC·스마트폰·학생 기기가 실시간으로 데이터를 공유하려면 아래에 원장님의 <strong>Firebase 웹 앱 설정(firebaseConfig)</strong>을 붙여넣으세요.
+                    </p>
+                    <textarea id="setting-firebase-config" rows="5" placeholder='{"apiKey": "AIzaSy...", "authDomain": "...", "projectId": "...", "storageBucket": "...", "messagingSenderId": "...", "appId": "..."}' class="w-full px-3 py-2 bg-navy-950 text-emerald-300 font-mono text-[11px] border border-indigo-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"></textarea>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1">Gemini API Key (사진 자동 스캔용, 선택)</label>
+                    <input type="password" id="setting-gemini-key" placeholder="AIzaSy... (AI 비전 사진 스캔용 API Key)" class="w-full px-3 py-2 bg-navy-950 text-slate-100 border border-indigo-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                </div>
+
+                <div class="pt-3 border-t border-indigo-900/50 flex justify-between items-center">
+                    <span class="text-rose-400 font-bold">전체 데이터 초기화</span>
+                    <button onclick="resetAllStudentData()" class="px-3 py-1.5 bg-rose-600/30 text-rose-300 border border-rose-500/40 rounded-xl text-[11px] font-bold hover:bg-rose-600 hover:text-white transition">
+                        초기화 실행
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 pt-2">
+                <button onclick="closeSettingsModal()" class="px-4 py-2 text-slate-400 hover:text-white text-xs font-bold">닫기</button>
+                <button onclick="saveSettings()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs shadow-lg">
+                    설정 저장 및 클라우드 연결
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Main Logic -->
     <script>
         const STORAGE_KEY = "seattle_english_student_data_v3";
-        window.currentSystemMode = 'teacher';
-        window.studentData = [
-            { id: 1, name: "리후", grade: "g3", gradeLabel: "고3", memo: "고3 리후 학생", exams: [{ id: 1, title: "10월 학평", score: 83.5, wrongNumbers: [29, 31] }] },
-            { id: 2, name: "휘준", grade: "g3", gradeLabel: "고3", memo: "고3 휘준 학생", exams: [{ id: 1, title: "10월 학평", score: 86.7, wrongNumbers: [32, 37] }] },
-            { id: 3, name: "동현", grade: "g2", gradeLabel: "고2", memo: "고2 동현 학생", exams: [{ id: 1, title: "10월 학평", score: 80.3, wrongNumbers: [40, 34] }] },
-            { id: 4, name: "규민", grade: "g2", gradeLabel: "고2", memo: "가채점 59.5", exams: [{ id: 1, title: "중간고사", score: 59.5, wrongNumbers: [29, 30] }] },
-            { id: 5, name: "수현", grade: "g1", gradeLabel: "고1", memo: "1등급 90점", exams: [{ id: 1, title: "10월학평", score: 90, wrongNumbers: [32, 37] }] },
-            { id: 6, name: "소연", grade: "g1", gradeLabel: "고1", memo: "고1 소연 학생", exams: [{ id: 1, title: "모의고사", score: 49.3, wrongNumbers: [23, 24] }] },
-            { id: 7, name: "태욱", grade: "g1", gradeLabel: "고1", memo: "고1 태욱 학생", exams: [{ id: 1, title: "모의고사", score: 68.0, wrongNumbers: [21, 37] }] },
-            { id: 8, name: "나경", grade: "g1", gradeLabel: "고1", memo: "고1 나경 학생", exams: [{ id: 1, title: "모의고사", score: 81.0, wrongNumbers: [29, 30] }] }
+        const SETTINGS_KEY = "seattle_english_settings_v3";
+
+        window.currentSystemMode = 'student';
+        let currentTeacherGradeFilter = 'all';
+        let geminiApiKey = "";
+        let currentEditingStudentId = null;
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('custom-toast');
+            const msgEl = document.getElementById('toast-message');
+            const iconEl = document.getElementById('toast-icon');
+            if (!toast || !msgEl) return;
+
+            msgEl.innerText = message;
+            if (type === 'success') {
+                iconEl.className = "fa-solid fa-circle-check text-emerald-400 text-lg";
+            } else if (type === 'error') {
+                iconEl.className = "fa-solid fa-circle-exclamation text-rose-400 text-lg";
+            } else {
+                iconEl.className = "fa-solid fa-circle-info text-indigo-400 text-lg";
+            }
+
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-4', 'opacity-0');
+            }, 10);
+
+            clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-4', 'opacity-0');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 3800);
+        }
+
+        function showConfirm(message, onConfirm) {
+            const modal = document.getElementById('custom-confirm-modal');
+            const msgEl = document.getElementById('confirm-message');
+            const okBtn = document.getElementById('confirm-ok-btn');
+            const cancelBtn = document.getElementById('confirm-cancel-btn');
+
+            msgEl.innerText = message;
+            modal.classList.remove('hidden');
+
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+            };
+
+            okBtn.onclick = () => {
+                cleanup();
+                onConfirm();
+            };
+            cancelBtn.onclick = cleanup;
+        }
+
+        const initialDefaultStudents = [
+            {
+                id: 1710000001,
+                name: "수연",
+                grade: "g1",
+                gradeLabel: "고1",
+                memo: "• [오답 패턴 분석]\n - 빈칸 추론(31-34번)에서 지문 논리 전개 파악 및 선택지 패러프레이징 단어 미숙으로 오답 다수 발생.",
+                exams: [
+                    { id: 1, title: "2025년 3월 모의고사", score: 82, wrongNumbers: [31, 34, 37] },
+                    { id: 2, title: "2024년 11월 모의고사", score: 79, wrongNumbers: [31, 32, 38, 39] }
+                ]
+            }
         ];
 
-        function loadData() {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                try { window.studentData = JSON.parse(saved); } catch (e) {}
-            } else {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(window.studentData));
+        window.studentData = [];
+
+        function checkUrlSyncPayload() {
+            try {
+                const hash = window.location.hash;
+                if (hash && hash.startsWith('#sync=')) {
+                    const encoded = hash.slice(6);
+                    const jsonStr = decodeURIComponent(escape(atob(encoded)));
+                    const payload = JSON.parse(jsonStr);
+
+                    if (payload.fbConfig) {
+                        const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+                        settings.customFirebaseConfig = JSON.stringify(payload.fbConfig);
+                        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+                    }
+                    if (payload.students && Array.isArray(payload.students)) {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload.students));
+                    }
+
+                    history.replaceState(null, null, window.location.pathname + window.location.search);
+                    showToast("동기화 완료!", "success");
+                    if (payload.fbConfig) {
+                        setTimeout(() => window.location.reload(), 1000);
+                    }
+                }
+            } catch (e) {
+                console.warn("URL Sync decode error:", e);
             }
         }
 
-        window.saveDataToStorage = function() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(window.studentData));
-            window.studentData.forEach(s => {
-                if (window.FB_SERVICE && window.FB_SERVICE.saveStudentToCloud) {
-                    window.FB_SERVICE.saveStudentToCloud(s);
+        function copyShareSyncLink() {
+            try {
+                const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+                const payload = { students: window.studentData };
+                if (settings.customFirebaseConfig) {
+                    payload.fbConfig = JSON.parse(settings.customFirebaseConfig);
                 }
-            });
-        };
 
-        window.forceSyncAllToCloud = function() {
-            window.saveDataToStorage();
-            alert("모든 학생 데이터가 클라우드에 강제 동기화되었습니다!");
+                const jsonStr = JSON.stringify(payload);
+                const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
+                const baseUrl = window.location.href.split('#')[0];
+                const shareUrl = `${baseUrl}#sync=${encoded}`;
+
+                const tempInput = document.createElement("textarea");
+                tempInput.value = shareUrl;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand("copy");
+                document.body.removeChild(tempInput);
+
+                showToast("링크가 복사되었습니다! 다른 기기에서 열어보세요.", "success");
+            } catch (e) {
+                showToast("링크 생성 오류", "error");
+            }
+        }
+
+        function loadDataFromStorage() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    window.studentData = JSON.parse(saved);
+                } else {
+                    window.studentData = [...initialDefaultStudents];
+                    saveDataToStorage(true);
+                }
+            } catch (e) {
+                window.studentData = [...initialDefaultStudents];
+            }
+
+            try {
+                const settings = localStorage.getItem(SETTINGS_KEY);
+                if (settings) {
+                    const parsed = JSON.parse(settings);
+                    geminiApiKey = parsed.geminiApiKey || "";
+                    const keyInput = document.getElementById('setting-gemini-key');
+                    if (keyInput) keyInput.value = geminiApiKey;
+
+                    const fbInput = document.getElementById('setting-firebase-config');
+                    if (fbInput && parsed.customFirebaseConfig) {
+                        fbInput.value = parsed.customFirebaseConfig;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        window.saveDataToStorage = function(syncCloud = true) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(window.studentData));
+                if (syncCloud && window.FB_SERVICE && window.FB_SERVICE.isConnected) {
+                    window.studentData.forEach(student => {
+                        window.FB_SERVICE.saveStudentToCloud(student);
+                    });
+                }
+            } catch (e) {}
         };
 
         window.onload = function() {
-            loadData();
-            switchMode('teacher');
+            initTheme();
+            checkUrlSyncPayload();
+            loadDataFromStorage();
+            renderOcrExamRows([
+                { title: "2025년 3월 모의고사", score: 85, wrong: "31, 34, 37" }
+            ]);
         };
 
-        window.switchMode = function(mode) {
+        function initTheme() {
+            document.documentElement.classList.add('dark');
+        }
+
+        function toggleDarkMode() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            const icon = document.getElementById('theme-icon');
+            if (icon) icon.className = isDark ? 'fa-solid fa-sun text-sm' : 'fa-solid fa-moon text-sm';
+        }
+
+        function switchMode(mode) {
             window.currentSystemMode = mode;
-            if (mode === 'teacher') {
-                document.getElementById('view-teacher-portal').classList.remove('hidden');
-                document.getElementById('view-student-portal').classList.add('hidden');
-                document.getElementById('btn-mode-teacher').className = "px-3 py-1.5 rounded-xl text-xs font-bold transition bg-purple-600 text-white shadow-md flex items-center gap-1.5";
-                document.getElementById('btn-mode-student').className = "px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5";
-                renderTeacherDashboard();
-            } else {
-                document.getElementById('view-teacher-portal').classList.add('hidden');
+            const btnStudent = document.getElementById('btn-mode-student');
+            const btnTeacher = document.getElementById('btn-mode-teacher');
+
+            if (mode === 'student') {
+                if (btnStudent) btnStudent.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition bg-indigo-600 text-white shadow-md flex items-center gap-1.5";
+                if (btnTeacher) btnTeacher.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5";
+                
                 document.getElementById('view-student-portal').classList.remove('hidden');
-                document.getElementById('btn-mode-student').className = "px-3 py-1.5 rounded-xl text-xs font-bold transition bg-indigo-600 text-white shadow-md flex items-center gap-1.5";
-                document.getElementById('btn-mode-teacher').className = "px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5";
+                document.getElementById('view-teacher-portal').classList.add('hidden');
+            } else {
+                if (btnTeacher) btnTeacher.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition bg-purple-600 text-white shadow-md flex items-center gap-1.5";
+                if (btnStudent) btnStudent.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white flex items-center gap-1.5";
+                
+                document.getElementById('view-student-portal').classList.add('hidden');
+                document.getElementById('view-teacher-portal').classList.remove('hidden');
+                renderTeacherDashboard();
             }
-        };
+        }
+
+        function filterTeacherGrade(grade) {
+            currentTeacherGradeFilter = grade;
+            ['all', 'g1', 'g2', 'g3'].forEach(g => {
+                const btn = document.getElementById(`btn-grade-${g}`);
+                if (btn) {
+                    btn.className = g === grade ? "px-3 py-1.5 rounded-xl text-xs font-bold transition bg-purple-600 text-white shadow" : "px-3 py-1.5 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white";
+                }
+            });
+            renderTeacherDashboard();
+        }
+
+        function getItemType(num) {
+            const n = parseInt(num);
+            if (isNaN(n)) return "기타";
+            if (n >= 1 && n <= 17) return "듣기";
+            if (n >= 18 && n <= 20) return "목적/주장";
+            if (n >= 21 && n <= 24) return "주제/요지";
+            if (n >= 25 && n <= 28) return "실용문/도표";
+            if (n === 29) return "어법";
+            if (n === 30) return "어휘";
+            if (n >= 31 && n <= 34) return "빈칸 추론";
+            if (n === 35) return "무관한 문장";
+            if (n >= 36 && n <= 39) return "순서/삽입";
+            if (n === 40) return "요약문";
+            if (n >= 41 && n <= 45) return "장문 독해";
+            return "기타";
+        }
+
+        function handleStudentCheckin(e) {
+            e.preventDefault();
+            const gradeVal = document.getElementById('checkin-grade').value;
+            const nameVal = document.getElementById('checkin-name').value.trim();
+
+            if (!gradeVal || !nameVal) {
+                showToast("학년과 이름을 입력해 주세요.", "error");
+                return;
+            }
+
+            const student = window.studentData.find(s => s.name === nameVal && s.grade === gradeVal);
+            if (!student) {
+                showToast(`[${nameVal}] 학생의 기록을 찾을 수 없습니다.`, "error");
+                return;
+            }
+
+            renderStudentDashboard(student);
+        }
+
+        function backToCheckin() {
+            document.getElementById('student-dashboard').classList.add('hidden');
+            document.getElementById('checkin-card').classList.remove('hidden');
+        }
+
+        function renderStudentDashboard(student) {
+            document.getElementById('checkin-card').classList.add('hidden');
+            document.getElementById('student-dashboard').classList.remove('hidden');
+
+            document.getElementById('display-student-grade').innerText = student.gradeLabel || '고1';
+            document.getElementById('display-student-name').innerText = `${student.name} 학생`;
+            document.getElementById('display-student-exam-count').innerText = `${(student.exams || []).length}회`;
+
+            const totalScore = (student.exams || []).reduce((acc, ex) => acc + ex.score, 0);
+            const avgScore = (student.exams || []).length > 0 ? (totalScore / student.exams.length).toFixed(1) : 0;
+            document.getElementById('display-student-avg-score').innerText = `${avgScore}점`;
+            document.getElementById('student-display-memo').innerText = student.memo || "메모 없음";
+
+            const itemCounts = {};
+            const domainCounts = {};
+            (student.exams || []).forEach(ex => {
+                (ex.wrongNumbers || []).forEach(n => {
+                    itemCounts[n] = (itemCounts[n] || 0) + 1;
+                    domainCounts[getItemType(n)] = (domainCounts[getItemType(n)] || 0) + 1;
+                });
+            });
+
+            const sortedWrong = Object.entries(itemCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            const heatmapContainer = document.getElementById('student-accumulated-wrong-items');
+            heatmapContainer.innerHTML = sortedWrong.length > 0 ? sortedWrong.map(([num, count]) => `
+                <div class="bg-navy-950 p-3.5 rounded-2xl border border-indigo-900/60 flex items-center justify-between shadow">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-400 font-black text-sm flex items-center justify-center">${num}</div>
+                        <div>
+                            <p class="text-xs font-bold text-white">${num}번 문항 (${getItemType(num)})</p>
+                            <p class="text-[10px] text-slate-400">총 <strong class="text-rose-400">${count}회</strong> 감점</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('') : `<p class="text-xs text-slate-400 col-span-2">오답 기록이 없습니다.</p>`;
+
+            const domainContainer = document.getElementById('domain-summary-list');
+            const totalWrongCount = Object.values(itemCounts).reduce((a, b) => a + b, 0);
+            domainContainer.innerHTML = totalWrongCount > 0 ? Object.entries(domainCounts).sort((a, b) => b[1] - a[1]).map(([domain, count]) => {
+                const percent = Math.round((count / totalWrongCount) * 100);
+                return `
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-[11px] text-slate-300 font-bold">
+                            <span>${domain}</span><span class="text-indigo-400">${count}회 (${percent}%)</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-navy-950 rounded-full overflow-hidden">
+                            <div class="h-full bg-indigo-500 rounded-full" style="width: ${percent}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('') : `<p class="text-xs text-slate-400">데이터 없음</p>`;
+
+            const historyContainer = document.getElementById('student-exams-history-list');
+            historyContainer.innerHTML = (student.exams || []).length > 0 ? student.exams.map(exam => `
+                <div class="bg-navy-950 p-4 rounded-2xl border border-indigo-950 flex justify-between items-center">
+                    <div>
+                        <span class="font-bold text-xs text-white">${exam.title}</span>
+                        <span class="ml-2 bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full">${exam.score}점</span>
+                        <div class="mt-1 text-xs text-rose-300">틀린문항: ${(exam.wrongNumbers || []).join(', ')}번</div>
+                    </div>
+                </div>
+            `).join('') : `<p class="text-xs text-slate-400">응시 기록 없음</p>`;
+        }
 
         window.renderTeacherDashboard = function() {
+            let filtered = window.studentData;
+            if (currentTeacherGradeFilter !== 'all') {
+                filtered = window.studentData.filter(s => s.grade === currentTeacherGradeFilter);
+            }
+
+            document.getElementById('teacher-student-count-badge').innerText = `등록된 수강생: ${filtered.length}명`;
             const tbody = document.getElementById('teacher-student-table-body');
             if (!tbody) return;
-            tbody.innerHTML = window.studentData.map(student => `
-                <tr class="hover:bg-navy-950/60 transition">
-                    <td class="p-3 font-bold text-indigo-300">${student.gradeLabel || student.grade}</td>
-                    <td class="p-3 font-bold text-white">${student.name}</td>
-                    <td class="p-3 text-slate-300">${(student.exams || []).length}회</td>
-                    <td class="p-3 font-extrabold text-emerald-400">${student.exams?.[0]?.score || 0}점</td>
-                    <td class="p-3 text-center space-x-1">
-                        <button onclick="previewStudentReport('${student.name}', '${student.grade}')" class="px-2.5 py-1.5 bg-indigo-600 text-white rounded-xl font-bold text-[11px]">리포트</button>
-                        <button onclick="editStudent(${student.id})" class="px-2.5 py-1.5 bg-purple-600 text-white rounded-xl font-bold text-[11px]">수정</button>
-                        <button onclick="deleteStudent(${student.id})" class="px-2.5 py-1.5 bg-rose-900 text-rose-200 rounded-xl font-bold text-[11px]">삭제</button>
-                    </td>
-                </tr>
-            `).join('');
+
+            tbody.innerHTML = filtered.length === 0 ? `<tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">등록된 수강생이 없습니다.</td></tr>` : filtered.map(student => {
+                const totalScore = (student.exams || []).reduce((acc, ex) => acc + ex.score, 0);
+                const avgScore = (student.exams || []).length > 0 ? (totalScore / student.exams.length).toFixed(1) : 0;
+                const itemCounts = {};
+                (student.exams || []).forEach(ex => (ex.wrongNumbers || []).forEach(n => itemCounts[n] = (itemCounts[n] || 0) + 1));
+                const topWrong = Object.entries(itemCounts).sort((a,b) => b[1] - a[1]).slice(0,3).map(e => `${e[0]}번`).join(', ');
+
+                return `
+                    <tr class="hover:bg-navy-950/60 transition">
+                        <td class="p-3 font-bold text-indigo-300">${student.gradeLabel || '고1'}</td>
+                        <td class="p-3 font-bold text-white">${student.name}</td>
+                        <td class="p-3 text-slate-300">${(student.exams || []).length}회</td>
+                        <td class="p-3 font-extrabold text-emerald-400">${avgScore}점</td>
+                        <td class="p-3 text-rose-400 font-semibold">${topWrong || '-'}</td>
+                        <td class="p-3 text-center space-x-1">
+                            <button onclick="previewStudentReport('${student.name}', '${student.grade}')" class="px-2.5 py-1.5 bg-indigo-600 text-white rounded-xl font-bold text-[11px]">리포트</button>
+                            <button onclick="editStudentData(${student.id})" class="px-2.5 py-1.5 bg-purple-600 text-white rounded-xl font-bold text-[11px]">수정</button>
+                            <button onclick="deleteStudent(${student.id})" class="px-2.5 py-1.5 bg-rose-900/60 text-rose-200 rounded-xl font-bold text-[11px]">삭제</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         };
 
-        window.previewStudentReport = function(name, grade) {
+        function previewStudentReport(name, grade) {
             switchMode('student');
             const student = window.studentData.find(s => s.name === name && s.grade === grade);
-            if (student) {
-                document.getElementById('display-student-name').innerText = `${student.name} 학생 분석 리포트`;
-                document.getElementById('student-display-memo').innerText = student.memo || "메모 없음";
-            }
-        };
+            if (student) renderStudentDashboard(student);
+        }
 
-        window.backToCheckin = function() {
-            switchMode('teacher');
-        };
-
-        window.openImageUploadModal = function() {
-            document.getElementById('imageUploadModal').classList.remove('hidden');
-        };
-
-        window.closeImageUploadModal = function() {
-            document.getElementById('imageUploadModal').classList.add('hidden');
-        };
-
-        window.saveOcrResult = function() {
-            const name = document.getElementById('ocr-student-name').value.trim();
-            const grade = document.getElementById('ocr-student-grade').value;
-            const memo = document.getElementById('ocr-memo').value.trim();
-            if (!name) { alert("이름을 입력하세요."); return; }
-            window.studentData.push({ id: Date.now(), name, grade, gradeLabel: grade === 'g1' ? '고1' : grade === 'g2' ? '고2' : '고3', memo, exams: [] });
-            saveDataToStorage();
-            renderTeacherDashboard();
-            closeImageUploadModal();
-        };
-
-        window.deleteStudent = function(id) {
-            if (confirm("정말 삭제하시겠습니까?")) {
-                window.studentData = window.studentData.filter(s => s.id !== id);
-                saveDataToStorage();
-                renderTeacherDashboard();
-                if (window.FB_SERVICE && window.FB_SERVICE.deleteStudentFromCloud) {
-                    window.FB_SERVICE.deleteStudentFromCloud(id);
-                }
-            }
-        };
-
-        window.editStudent = function(id) {
+        function editStudentData(id) {
             const student = window.studentData.find(s => s.id === id);
             if (!student) return;
+            currentEditingStudentId = id;
             document.getElementById('ocr-student-name').value = student.name;
             document.getElementById('ocr-student-grade').value = student.grade;
             document.getElementById('ocr-memo').value = student.memo || "";
+            renderOcrExamRows((student.exams || []).map(ex => ({ title: ex.title, score: ex.score, wrong: (ex.wrongNumbers || []).join(', ') })));
             openImageUploadModal();
-        };
+        }
 
-        window.exportDataJSON = function() {
-            const dataStr = JSON.stringify(window.studentData, null, 2);
-            const blob = new Blob([dataStr], { type: "application/json" });
+        function deleteStudent(id) {
+            showConfirm("정말 삭제하시겠습니까?", () => {
+                window.studentData = window.studentData.filter(s => s.id !== id);
+                saveDataToStorage(false);
+                if (window.FB_SERVICE) window.FB_SERVICE.deleteStudentFromCloud(id);
+                renderTeacherDashboard();
+                showToast("삭제되었습니다.", "info");
+            });
+        }
+
+        function requestConsultation() {
+            showToast("상담 예약이 접수되었습니다!", "success");
+        }
+
+        function openSettingsModal() { document.getElementById('settingsModal').classList.remove('hidden'); }
+        function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
+
+        function saveSettings() {
+            const keyVal = document.getElementById('setting-gemini-key')?.value.trim() || "";
+            const fbVal = document.getElementById('setting-firebase-config')?.value.trim() || "";
+            let parsedFb = null;
+            if (fbVal) {
+                try { parsedFb = JSON.parse(fbVal); } catch (e) {
+                    showToast("Firebase 설정 JSON 형식이 올바르지 않습니다.", "error");
+                    return;
+                }
+            }
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify({ geminiApiKey: keyVal, customFirebaseConfig: parsedFb ? JSON.stringify(parsedFb) : "" }));
+            closeSettingsModal();
+            showToast("설정 저장 완료. 새로고침합니다.", "success");
+            setTimeout(() => window.location.reload(), 900);
+        }
+
+        function resetAllStudentData() {
+            showConfirm("초기화하시겠습니까?", () => {
+                window.studentData = [...initialDefaultStudents];
+                saveDataToStorage(true);
+                renderTeacherDashboard();
+                closeSettingsModal();
+                showToast("초기화되었습니다.", "info");
+            });
+        }
+
+        function exportDataJSON() {
+            const blob = new Blob([JSON.stringify(window.studentData, null, 2)], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
-            a.download = `backup.json`;
-            a.click();
-        };
+            a.href = url; a.download = `backup.json`; a.click();
+            URL.revokeObjectURL(url);
+            showToast("백업 파일 다운로드 완료", "success");
+        }
 
-        window.importDataJSON = function(e) {
-            const file = e.target.files[0];
+        function importDataJSON(event) {
+            const file = event.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = function(evt) {
+            reader.onload = function(e) {
                 try {
-                    window.studentData = JSON.parse(evt.target.result);
-                    saveDataToStorage();
+                    window.studentData = JSON.parse(e.target.result);
+                    saveDataToStorage(true);
                     renderTeacherDashboard();
-                    alert("복원 완료!");
-                } catch (err) { alert("파일 오류"); }
+                    showToast("데이터 복원 완료!", "success");
+                } catch (err) { showToast("파일 오류", "error"); }
             };
             reader.readAsText(file);
-        };
+        }
+
+        function openImageUploadModal() { document.getElementById('imageUploadModal').classList.remove('hidden'); }
+        function closeImageUploadModal() { document.getElementById('imageUploadModal').classList.add('hidden'); }
+
+        function renderOcrExamRows(exams) {
+            const container = document.getElementById('ocr-exams-list-container');
+            if (!container) return;
+            container.innerHTML = '';
+            exams.forEach(ex => appendOcrExamRow(ex));
+        }
+
+        function appendOcrExamRow(ex = {}) {
+            const container = document.getElementById('ocr-exams-list-container');
+            if (!container) return;
+            const div = document.createElement('div');
+            div.className = "ocr-exam-item bg-navy-900 p-3 rounded-xl border border-indigo-900/60 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center";
+            div.innerHTML = `
+                <div class="sm:col-span-4"><input type="text" class="ocr-exam-title w-full px-2.5 py-1.5 bg-navy-950 text-slate-100 border border-indigo-800 rounded-lg text-xs font-bold" value="${ex.title || ''}" placeholder="시험명"></div>
+                <div class="sm:col-span-2"><input type="number" class="ocr-exam-score w-full px-2.5 py-1.5 bg-navy-950 text-emerald-400 border border-indigo-800 rounded-lg text-xs font-black" value="${ex.score ?? ''}" placeholder="점수"></div>
+                <div class="sm:col-span-4"><input type="text" class="ocr-exam-wrong w-full px-2.5 py-1.5 bg-navy-950 text-rose-300 border border-indigo-800 rounded-lg text-xs font-bold" value="${ex.wrong || ''}" placeholder="틀린번호"></div>
+                <div class="sm:col-span-2 flex justify-end"><button type="button" onclick="this.closest('.ocr-exam-item').remove()" class="px-2 py-1 bg-rose-900 text-white rounded-lg text-[10px]">삭제</button></div>
+            `;
+            container.appendChild(div);
+        }
+
+        function addOcrExamRow() { appendOcrExamRow({ title: "", score: "", wrong: "" }); }
+
+        function saveOcrResult() {
+            const name = document.getElementById('ocr-student-name').value.trim();
+            const grade = document.getElementById('ocr-student-grade').value;
+            const memo = document.getElementById('ocr-memo').value.trim();
+            if (!name) { showToast("이름을 입력하세요.", "error"); return; }
+
+            const exams = Array.from(document.querySelectorAll('.ocr-exam-item')).map((item, idx) => ({
+                id: idx + 1,
+                title: item.querySelector('.ocr-exam-title').value || "모의고사",
+                score: parseInt(item.querySelector('.ocr-exam-score').value) || 80,
+                wrongNumbers: item.querySelector('.ocr-exam-wrong').value.split(/[,;\s]+/).map(n => parseInt(n)).filter(n => !isNaN(n))
+            }));
+
+            const gradeLabel = grade === 'g1' ? '고1' : grade === 'g2' ? '고2' : '고3';
+            if (currentEditingStudentId) {
+                const idx = window.studentData.findIndex(s => s.id === currentEditingStudentId);
+                if (idx !== -1) window.studentData[idx] = { ...window.studentData[idx], name, grade, gradeLabel, memo, exams };
+            } else {
+                window.studentData.unshift({ id: Date.now(), name, grade, gradeLabel, memo, exams });
+            }
+
+            saveDataToStorage(true);
+            renderTeacherDashboard();
+            closeImageUploadModal();
+            showToast("저장 완료!", "success");
+        }
     </script>
 </body>
 </html>
